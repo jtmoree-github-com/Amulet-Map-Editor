@@ -145,6 +145,8 @@ key_config.key_select=Key Select
 key_config.press_label=Press the key you want assigned to {action}
 key_config.enter_group_name=Enter a new group name.
 key_config.active_not_editable=The active key group is not editable. Would you like to create a new group to edit?
+key_config.group_description.cursor=The cursor will always move with these keys. In addition, it may move with the camera move keys when the toggle is activated.
+key_config.group_description.camera=The move keys affect the camera by default but may be toggled to move the cursor instead
 
 # About
 ## The default program when a world is opened
@@ -207,7 +209,7 @@ action.act_switch_to_import_mode=Switch to Import Mode
 action.act_switch_to_export_mode=Switch to Export Mode
 action.act_switch_to_chunk_mode=Switch to Chunk Mode
 action.act_toggle_move_target=Change Cursor Target
-action.act_toggle_wasd_mode=Toggle Camera/Cusor Move
+action.act_toggle_wasd_mode=Toggle Camera/Cursor Move
 action.act_focus_paste_dialog=Keyboard Focus Paste Dialog
 action.act_toggle_fullscreen=Toggle Fullscreen
 action.act_box_click=Select New Highlight Box
@@ -222,7 +224,7 @@ action.act_decr_select_distance=Decrease Selection Distance
 action.act_deselect_all_boxes=Deselect All Highlight Boxes
 action.act_deselect_box=Deselect Active Highlight Box
 action.act_inspect_block=Inspect Block
-action.act_change_projection=Toggle Projection
+action.act_change_projection=Toggle 2D/3D
 
 ## Menu bar
 program_3d_edit.menu_bar.file.save=Save
@@ -236,8 +238,14 @@ program_3d_edit.menu_bar.edit.paste=Paste
 program_3d_edit.menu_bar.edit.delete=Delete Blocks
 program_3d_edit.menu_bar.edit.goto=Goto
 program_3d_edit.menu_bar.edit.select_all=Select All
+program_3d_edit.menu_bar.edit.deselect=Deselect
+program_3d_edit.menu_bar.edit.deselect_all=Deselect All
+program_3d_edit.menu_bar.navigation.menu_name=&Navigation
+program_3d_edit.menu_bar.navigation.toggle_projection=Toggle Projection
+program_3d_edit.menu_bar.navigation.toggle_camera_cursor=Toggle Camera/Cursor Move
+program_3d_edit.menu_bar.navigation.goto=&Goto
 program_3d_edit.menu_bar.options.controls=Controls...
-program_3d_edit.menu_bar.options.options=Options...
+program_3d_edit.menu_bar.options.camera=Camera...
 program_3d_edit.menu_bar.help.user_guide=User Guide (online)
 
 ## Select tool

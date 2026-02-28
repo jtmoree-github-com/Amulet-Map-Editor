@@ -258,13 +258,13 @@ class EditExtension(wx.Panel, BaseProgram):
         menu.setdefault(lang.get("menu_bar.file.menu_name"), {}).setdefault(
             "system", {}
         ).setdefault(
-            f"&{lang.get('program_3d_edit.menu_bar.file.save')}\tCtrl+s",
+            f"&{lang.get('program_3d_edit.menu_bar.file.save')}\tCtrl+S",
             lambda evt: self._canvas.save(),
         )
         menu.setdefault(lang.get("menu_bar.file.menu_name"), {}).setdefault(
             "system", {}
         ).setdefault(
-            f"&{lang.get('program_3d_edit.menu_bar.file.preferences')}",
+            f"&{lang.get('program_3d_edit.menu_bar.file.preferences')}\tCtrl+P",
             lambda evt: self._edit_preferences(),
         )
         # menu.setdefault(lang.get('menu_bar.file.menu_name'), {}).setdefault('system', {}).setdefault('Save As', lambda evt: self.GetGrandParent().close_world(self.world.world_path))
@@ -284,7 +284,7 @@ class EditExtension(wx.Panel, BaseProgram):
             {
                 f"{lang.get('program_3d_edit.menu_bar.edit.cut')}\tCtrl+x": lambda evt: self._canvas.cut(),
                 f"{lang.get('program_3d_edit.menu_bar.edit.copy')}\tCtrl+c": lambda evt: self._canvas.copy(),
-                f"{lang.get('program_3d_edit.menu_bar.edit.paste')}": lambda evt: self._canvas.paste_from_cache(),
+                f"{lang.get('program_3d_edit.menu_bar.edit.paste')}\tCtrl+v": lambda evt: self._canvas.paste_from_cache(),
                 f"{lang.get('program_3d_edit.menu_bar.edit.delete')}\tDelete": lambda evt: self._canvas.delete(),
             }
         )
@@ -293,21 +293,32 @@ class EditExtension(wx.Panel, BaseProgram):
             lang.get("program_3d_edit.menu_bar.edit.menu_name"), {}
         ).setdefault("shortcut", {}).update(
             {
-                f"{lang.get('program_3d_edit.menu_bar.edit.goto')}\tCtrl+g": lambda evt: self._canvas.goto(),
+                f"{lang.get('program_3d_edit.menu_bar.edit.deselect')}\tCtrl+d": lambda evt: self._canvas._deselect(),
+                f"{lang.get('program_3d_edit.menu_bar.edit.deselect_all')}\tCtrl+Shift+d": lambda evt: self._canvas._deselect(),
                 f"{lang.get('program_3d_edit.menu_bar.edit.select_all')}\tCtrl+A": lambda evt: self._canvas.select_all(),
+            }
+        )
+
+        menu.setdefault(
+            lang.get("program_3d_edit.menu_bar.navigation.menu_name"), {}
+        ).setdefault("navigation", {}).update(
+            {
+                f"{lang.get('program_3d_edit.menu_bar.navigation.toggle_projection')}\tTab": lambda evt: self._toggle_projection(),
+                f"{lang.get('program_3d_edit.menu_bar.navigation.toggle_camera_cursor')}\tAlt+c": lambda evt: self._toggle_wasd_mode(),
+                f"{lang.get('program_3d_edit.menu_bar.navigation.goto')}\tCtrl+g": lambda evt: self._canvas.goto(),
             }
         )
 
         menu.setdefault(lang.get("menu_bar.options.menu_name"), {}).setdefault(
             "options", {}
         ).setdefault(
-            f"{lang.get('program_3d_edit.menu_bar.options.controls')}\tAlt+L",
+            f"{lang.get('program_3d_edit.menu_bar.options.controls')}\tCtrl+L",
             lambda evt: self._edit_controls(),
         )
         menu.setdefault(lang.get("menu_bar.options.menu_name"), {}).setdefault(
             "options", {}
         ).setdefault(
-            f"{lang.get('program_3d_edit.menu_bar.options.options')}\tAlt+N",
+            f"{lang.get('program_3d_edit.menu_bar.options.camera')}\tCtrl+M",
             lambda evt: self._edit_options(),
         )
         menu.setdefault(lang.get("menu_bar.help.menu_name"), {}).setdefault(
@@ -317,6 +328,19 @@ class EditExtension(wx.Panel, BaseProgram):
             lambda evt: self._help_controls(),
         )
         return menu
+
+    def _toggle_projection(self):
+        """Toggle between perspective and top-down projection."""
+        from amulet_map_editor.api.opengl.camera import Projection
+        if self._canvas.camera.projection_mode == Projection.PERSPECTIVE:
+            self._canvas.camera.rotation = 180, 90
+            self._canvas.camera.projection_mode = Projection.TOP_DOWN
+        elif self._canvas.camera.projection_mode == Projection.TOP_DOWN:
+            self._canvas.camera.projection_mode = Projection.PERSPECTIVE
+
+    def _toggle_wasd_mode(self):
+        """Toggle between camera move and cursor move modes."""
+        self._canvas.wasd_moves_cursor = not self._canvas.wasd_moves_cursor
 
     def _edit_controls(self):
         edit_config = config.get(EDIT_CONFIG_ID, {})

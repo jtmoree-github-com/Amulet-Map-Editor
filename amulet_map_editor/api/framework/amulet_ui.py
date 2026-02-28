@@ -96,12 +96,6 @@ class AmuletUI(wx.Frame):
             f"&{lang.get('menu_bar.file.open_world')}\tCtrl+O",
             lambda evt: self.open_world_select_tab(),
         )
-        menu_dict.setdefault(lang.get("menu_bar.file.menu_name"), {}).setdefault(
-            "system", {}
-        ).setdefault(
-            f"&{lang.get('program_3d_edit.menu_bar.file.preferences')}",
-            lambda evt: self._edit_preferences(),
-        )
         # menu_dict.setdefault(lang.get('menu_bar.file.menu_name'), {}).setdefault('system', {}).setdefault('Create World', lambda: self.world.save())
         menu_dict.setdefault(lang.get("menu_bar.file.menu_name"), {}).setdefault(
             "exit", {}

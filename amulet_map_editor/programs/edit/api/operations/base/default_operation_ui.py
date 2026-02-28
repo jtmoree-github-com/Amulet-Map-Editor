@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 import logging
 import wx
 from OpenGL.GL import (
@@ -16,6 +16,12 @@ from amulet_map_editor.programs.edit.api.behaviour import (
 from amulet_map_editor.programs.edit.api.events import (
     InputPressEvent,
     EVT_INPUT_PRESS,
+)
+from amulet_map_editor.api.wx.util.key_config import (
+    serialise_key,
+    Shift,
+    Control,
+    Alt,
 )
 from amulet_map_editor.programs.edit.api.key_config import (
     ACT_BOX_CLICK,
@@ -57,6 +63,118 @@ class DefaultOperationUI(OperationUI):
         self._camera_behaviour.bind_events()
         self._pointer.bind_events()
         self.canvas.Bind(EVT_INPUT_PRESS, self._on_input_press)
+        self.canvas.Bind(wx.EVT_KEY_DOWN, self._on_canvas_key_down)
+        if isinstance(self, wx.Window):
+            self.Bind(wx.EVT_CHAR_HOOK, self._on_char_hook)
+
+    def _on_canvas_key_down(self, evt: wx.KeyEvent):
+        key_code = evt.GetKeyCode()
+        if (
+            evt.ControlDown()
+            and not evt.AltDown()
+            and key_code in (ord("R"), ord("r"))
+            and self._trigger_run_operation_button()
+        ):
+            return
+        if (
+            evt.ControlDown()
+            and not evt.AltDown()
+            and key_code in (ord("F"), ord("f"))
+            and self._focus_first_search_field()
+        ):
+            return
+        evt.Skip()
+
+    def _on_char_hook(self, evt: wx.KeyEvent):
+        key_code = evt.GetKeyCode()
+        if (
+            evt.ControlDown()
+            and not evt.AltDown()
+            and key_code in (ord("R"), ord("r"))
+            and self._trigger_run_operation_button()
+        ):
+            return
+        if (
+            key_code == wx.WXK_TAB
+            and evt.ShiftDown()
+            and not evt.ControlDown()
+            and not evt.AltDown()
+        ):
+            focus = wx.Window.FindFocus()
+            if focus is not None and focus.Navigate(wx.NavigationKeyEvent.IsForward):
+                return
+        if self._dispatch_function_key_from_focused_field(evt):
+            return
+        if (
+            evt.ControlDown()
+            and not evt.AltDown()
+            and key_code in (ord("F"), ord("f"))
+            and self._focus_first_search_field()
+        ):
+            return
+        evt.Skip()
+
+    def _focus_first_search_field(self) -> bool:
+        if not isinstance(self, wx.Window):
+            return False
+        search_ctrl = self._find_search_ctrl(self)
+        if search_ctrl is None:
+            return False
+        search_ctrl.SetFocus()
+        search_ctrl.SelectAll()
+        return True
+
+    def _trigger_run_operation_button(self) -> bool:
+        run_button = getattr(self, "_run_button", None)
+        if not isinstance(run_button, wx.Button) or not run_button.IsEnabled():
+            return False
+
+        command_event = wx.CommandEvent(wx.wxEVT_BUTTON, run_button.GetId())
+        command_event.SetEventObject(run_button)
+        run_button.GetEventHandler().ProcessEvent(command_event)
+        return True
+
+    def _dispatch_function_key_from_focused_field(self, evt: wx.KeyEvent) -> bool:
+        key_code = evt.GetKeyCode()
+        if not (wx.WXK_F1 <= key_code <= wx.WXK_F24):
+            return False
+
+        key = serialise_key(evt)
+        if key is None:
+            return False
+
+        buttons = self.canvas.buttons
+        original_pressed_keys = buttons._pressed_keys.copy()
+        try:
+            simulated_pressed_keys = original_pressed_keys.copy()
+            if evt.ShiftDown():
+                simulated_pressed_keys.add(Shift)
+            if evt.ControlDown():
+                simulated_pressed_keys.add(Control)
+            if evt.AltDown():
+                simulated_pressed_keys.add(Alt)
+
+            buttons._pressed_keys = simulated_pressed_keys
+            action_ids = buttons._find_actions(key)
+        finally:
+            buttons._pressed_keys = original_pressed_keys
+
+        if not action_ids:
+            return False
+
+        for action_id in action_ids:
+            wx.PostEvent(self.canvas, InputPressEvent(action_id))
+        return True
+
+    def _find_search_ctrl(self, parent: wx.Window) -> Optional[wx.SearchCtrl]:
+        for child in parent.GetChildren():
+            if isinstance(child, wx.SearchCtrl):
+                return child
+            if isinstance(child, wx.Window):
+                nested = self._find_search_ctrl(child)
+                if nested is not None:
+                    return nested
+        return None
 
     def _on_draw(self, evt):
         try:

@@ -1,9 +1,11 @@
 import wx
+import webbrowser
 from typing import TYPE_CHECKING
 
 from amulet_map_editor.api import lang
 from amulet_map_editor.api.framework import app
 from amulet_map_editor.api.wx.ui.simple import SimplePanel
+from amulet_map_editor.api.datatypes import MenuData
 from amulet_map_editor.api.framework.programs import BaseProgram
 
 if TYPE_CHECKING:
@@ -43,3 +45,24 @@ class AboutProgram(SimplePanel, BaseProgram):
 
     def _close_world(self, evt):
         app.close_level(self.world.level_path)
+
+    def menu(self, menu: MenuData) -> MenuData:
+        menu.setdefault(lang.get("menu_bar.options.menu_name"), {}).setdefault(
+            "options", {}
+        ).setdefault(
+            f"{lang.get('program_3d_edit.menu_bar.file.preferences')}\tCtrl+P",
+            lambda evt: self.GetTopLevelParent()._edit_preferences(),
+        )
+        menu.setdefault(lang.get("menu_bar.help.menu_name"), {}).setdefault(
+            "help", {}
+        ).setdefault(
+            lang.get("program_3d_edit.menu_bar.help.user_guide"),
+            lambda evt: self._help_controls(),
+        )
+        return menu
+
+    @staticmethod
+    def _help_controls():
+        webbrowser.open(
+            "https://github.com/Amulet-Team/Amulet-Map-Editor/blob/master/README.md"
+        )

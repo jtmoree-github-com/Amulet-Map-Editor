@@ -432,7 +432,7 @@ class KeyConfig(wx.BoxSizer):
         self._rename.Bind(wx.EVT_BUTTON, lambda evt: self._rename_group())
         top_sizer.Add(self._rename, 0, wx.ALL, 5)
 
-        self._options = SimpleScrollablePanel(parent, size=(500, 500))
+        self._options = SimpleScrollablePanel(parent, size=(700, 500))
         self.Add(self._options, 1, wx.EXPAND)
 
         self._key_buttons: Dict[str, wx.Button] = {}
@@ -478,6 +478,17 @@ class KeyConfig(wx.BoxSizer):
             heading.SetFont(font)
             main_sizer.Add(heading, 0, wx.ALL, 5)
             
+            # Try to add group description if it exists
+            description_key = f"key_config.group_description.{group_name}"
+            description_text = lang.get(description_key)
+            if description_text != description_key:  # If not the key itself, we have a valid translation
+                description = wx.StaticText(self._options, label=description_text)
+                description_font = description.GetFont()
+                description_font.SetStyle(wx.FONTSTYLE_ITALIC)
+                description.SetFont(description_font)
+                description.Wrap(500)
+                main_sizer.Add(description, 0, wx.ALL | wx.EXPAND, 5)
+            
             # Add grid for this group if it has actions
             if actions_to_show:
                 grid_sizer = wx.GridSizer(len(actions_to_show), 2, 5, 5)
@@ -505,8 +516,52 @@ class KeyConfig(wx.BoxSizer):
             
             # Add spacing between groups
             main_sizer.Add(wx.StaticLine(self._options), 0, wx.EXPAND | wx.ALL, 5)
+
+        self._add_misc_hotkeys(main_sizer)
         
         self._options.Layout()
+
+    def _add_misc_hotkeys(self, main_sizer: wx.BoxSizer):
+        heading = wx.StaticText(self._options, label="Misc")
+        font = heading.GetFont()
+        font.PointSize += 2
+        font = font.Bold()
+        heading.SetFont(font)
+        main_sizer.Add(heading, 0, wx.ALL, 5)
+
+        misc_hotkeys = [
+            (lang.get("menu_bar.file.open_world"), "Ctrl+O"),
+            (lang.get("program_3d_edit.menu_bar.file.save"), "Ctrl+S"),
+            (lang.get("program_3d_edit.menu_bar.file.preferences"), "Ctrl+P"),
+            (lang.get("program_3d_edit.menu_bar.options.controls"), "Ctrl+L"),
+            (lang.get("program_3d_edit.menu_bar.options.camera"), "Ctrl+M"),
+            (lang.get("program_3d_edit.menu_bar.edit.undo"), "Ctrl+Z"),
+            (lang.get("program_3d_edit.menu_bar.edit.redo"), "Ctrl+Y"),
+            (lang.get("program_3d_edit.menu_bar.edit.cut"), "Ctrl+X"),
+            (lang.get("program_3d_edit.menu_bar.edit.copy"), "Ctrl+C"),
+            (lang.get("program_3d_edit.menu_bar.edit.paste"), "Ctrl+V"),
+            (lang.get("program_3d_edit.menu_bar.edit.delete"), "Delete"),
+            (lang.get("program_3d_edit.menu_bar.edit.goto"), "Ctrl+G"),
+            (lang.get("program_3d_edit.menu_bar.edit.select_all"), "Ctrl+A"),
+        ]
+
+        grid_sizer = wx.FlexGridSizer(len(misc_hotkeys), 2, 5, 10)
+        for label, hotkey in misc_hotkeys:
+            # Strip ellipsis (...) from menu labels in this static display
+            display_label = label.replace("...", "")
+            label_text = wx.StaticText(self._options, label=display_label)
+            grid_sizer.Add(
+                label_text,
+                0,
+                wx.ALIGN_CENTER_VERTICAL,
+            )
+            hotkey_label = wx.StaticText(self._options, label=hotkey)
+            hotkey_font = hotkey_label.GetFont()
+            hotkey_font = hotkey_font.Bold()
+            hotkey_label.SetFont(hotkey_font)
+            grid_sizer.Add(hotkey_label, 0, wx.ALIGN_CENTER_VERTICAL | wx.ALIGN_RIGHT)
+
+        main_sizer.Add(grid_sizer, 0, wx.ALL | wx.ALIGN_CENTER_HORIZONTAL, 5)
 
     def _rebuild_ungrouped_options(self, group):
         """Rebuild options panel without grouping (original behavior)."""
