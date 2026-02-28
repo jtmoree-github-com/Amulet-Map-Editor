@@ -9,10 +9,6 @@ from amulet_map_editor.api.wx.ui.simple import SimpleChoiceAny
 from amulet_map_editor.programs.edit.api.events import (
     EVT_CAMERA_MOVED,
     EVT_SPEED_CHANGED,
-    EVT_UNDO,
-    EVT_REDO,
-    EVT_CREATE_UNDO,
-    EVT_SAVE,
     EVT_PROJECTION_CHANGED,
     EVT_DIMENSION_CHANGE,
     DimensionChangeEvent,
@@ -107,25 +103,13 @@ class FilePanel(EditCanvasContainer):
 
         self._button_sizer.Add(self._dim_options)
 
+        self._button_sizer.AddSpacer(8)
+
         def create_button(text, operation):
             button = wx.Button(self._button_window, label=text)
             button.Bind(wx.EVT_BUTTON, operation)
             self._button_sizer.Add(button)
             return button
-
-        self._undo_button = create_button("0", lambda evt: self.canvas.undo())
-        self._undo_button.SetBitmap(image.icon.tablericons.arrow_back_up.bitmap(20, 20))
-        self._undo_button.SetToolTip(lang.get("program_3d_edit.file_ui.undo_tooltip"))
-
-        self._redo_button = create_button("0", lambda evt: self.canvas.redo())
-        self._redo_button.SetBitmap(
-            image.icon.tablericons.arrow_forward_up.bitmap(20, 20)
-        )
-        self._redo_button.SetToolTip(lang.get("program_3d_edit.file_ui.redo_tooltip"))
-
-        self._save_button = create_button("0", lambda evt: self.canvas.save())
-        self._save_button.SetBitmap(image.icon.tablericons.device_floppy.bitmap(20, 20))
-        self._save_button.SetToolTip(lang.get("program_3d_edit.file_ui.save_tooltip"))
 
         self._close_button = create_button(
             "", lambda evt: wx.PostEvent(self.canvas, EditCloseEvent())
@@ -136,31 +120,14 @@ class FilePanel(EditCanvasContainer):
         self._close_button.SetSize(wx.Size(size.GetHeight(), size.GetHeight()))
         self._close_button.SetMinSize(wx.Size(size.GetHeight(), size.GetHeight()))
 
-        self._update_buttons()
-
         self._resize()
 
     def bind_events(self):
         self.canvas.Bind(EVT_CAMERA_MOVED, self._on_camera_move)
         self.canvas.Bind(EVT_SPEED_CHANGED, self._on_speed_change)
-        self.canvas.Bind(EVT_UNDO, self._on_update_buttons)
-        self.canvas.Bind(EVT_REDO, self._on_update_buttons)
-        self.canvas.Bind(EVT_SAVE, self._on_update_buttons)
-        self.canvas.Bind(EVT_CREATE_UNDO, self._on_update_buttons)
         self.canvas.Bind(EVT_PROJECTION_CHANGED, self._on_projection_change)
         self.canvas.Bind(EVT_DIMENSION_CHANGE, self._change_dimension)
         self.canvas.Bind(wx.EVT_SIZE, self._on_resize)
-
-    def _on_update_buttons(self, evt):
-        self._update_buttons()
-        evt.Skip()
-
-    def _update_buttons(self):
-        self._undo_button.SetLabel(f"{self.canvas.world.history_manager.undo_count}")
-        self._redo_button.SetLabel(f"{self.canvas.world.history_manager.redo_count}")
-        self._save_button.SetLabel(
-            f"{self.canvas.world.history_manager.unsaved_changes}"
-        )
 
     def _on_dimension_change(self, evt):
         """Run when the dimension selection is changed by the user."""
