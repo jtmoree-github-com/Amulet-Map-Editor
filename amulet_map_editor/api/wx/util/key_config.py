@@ -360,7 +360,28 @@ class KeyConfigDialog(SimpleDialog):
         user_keybinds: KeybindContainer,
         action_groups: Optional[Dict[str, Sequence[KeyActionType]]] = None,
     ):
-        super().__init__(parent, lang.get("key_config.key_select"))
+        # Initialize SimpleDialog but override the style to include window management
+        wx.Dialog.__init__(
+            self,
+            parent,
+            title=lang.get("key_config.key_select"),
+            style=wx.CAPTION
+            | wx.CLOSE_BOX
+            | wx.MAXIMIZE_BOX
+            | wx.MINIMIZE_BOX
+            | wx.SYSTEM_MENU
+            | wx.RESIZE_BORDER,
+        )
+        sizer = wx.BoxSizer(wx.VERTICAL)
+        self.SetSizer(sizer)
+        self.sizer = wx.BoxSizer(wx.VERTICAL)
+        sizer.Add(self.sizer, 1, wx.EXPAND)
+        self.bottom_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        sizer.Add(self.bottom_sizer, 0, wx.EXPAND)
+        self.bottom_sizer.AddStretchSpacer()
+        button_sizer = self.CreateButtonSizer(wx.OK | wx.CANCEL)
+        self.bottom_sizer.Add(button_sizer, flag=wx.ALL, border=5)
+        
         self._key_config = KeyConfig(
             self, selected_group, entries, fixed_keybinds, user_keybinds, action_groups
         )
