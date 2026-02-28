@@ -13,6 +13,12 @@ from amulet_map_editor.api.wx.util.key_config import (
     Control,
     Alt,
     Tab,
+    Left,
+    Right,
+    Up,
+    Down,
+    PageUp,
+    PageDown,
 )
 from collections import OrderedDict
 
@@ -22,6 +28,12 @@ ACT_MOVE_FORWARDS = "ACT_MOVE_FORWARDS"
 ACT_MOVE_BACKWARDS = "ACT_MOVE_BACKWARDS"
 ACT_MOVE_LEFT = "ACT_MOVE_LEFT"
 ACT_MOVE_RIGHT = "ACT_MOVE_RIGHT"
+ACT_CURSOR_UP = "ACT_CURSOR_UP"
+ACT_CURSOR_DOWN = "ACT_CURSOR_DOWN"
+ACT_CURSOR_FORWARDS = "ACT_CURSOR_FORWARDS"
+ACT_CURSOR_BACKWARDS = "ACT_CURSOR_BACKWARDS"
+ACT_CURSOR_LEFT = "ACT_CURSOR_LEFT"
+ACT_CURSOR_RIGHT = "ACT_CURSOR_RIGHT"
 ACT_BOX_CLICK = "ACT_BOX_CLICK"
 ACT_BOX_CLICK_ADD = "ACT_BOX_CLICK_ADD"
 ACT_CHANGE_MOUSE_MODE = "ACT_CHANGE_MOUSE_MODE"
@@ -43,6 +55,12 @@ KeybindKeys: List[KeyActionType] = [
     ACT_MOVE_BACKWARDS,
     ACT_MOVE_LEFT,
     ACT_MOVE_RIGHT,
+    ACT_CURSOR_UP,
+    ACT_CURSOR_DOWN,
+    ACT_CURSOR_FORWARDS,
+    ACT_CURSOR_BACKWARDS,
+    ACT_CURSOR_LEFT,
+    ACT_CURSOR_RIGHT,
     ACT_BOX_CLICK,
     ACT_BOX_CLICK_ADD,
     ACT_CHANGE_MOUSE_MODE,
@@ -66,6 +84,12 @@ PresetKeybinds: KeybindContainer = {
         ACT_MOVE_BACKWARDS: ((), "S"),
         ACT_MOVE_LEFT: ((), "A"),
         ACT_MOVE_RIGHT: ((), "D"),
+        ACT_CURSOR_UP: ((), PageUp),
+        ACT_CURSOR_DOWN: ((), PageDown),
+        ACT_CURSOR_FORWARDS: ((), Up),
+        ACT_CURSOR_BACKWARDS: ((), Down),
+        ACT_CURSOR_LEFT: ((), Left),
+        ACT_CURSOR_RIGHT: ((), Right),
         ACT_BOX_CLICK: ((), MouseLeft),
         ACT_BOX_CLICK_ADD: ((Control,), MouseLeft),
         ACT_CHANGE_MOUSE_MODE: ((), MouseRight),
@@ -87,6 +111,12 @@ PresetKeybinds: KeybindContainer = {
         ACT_MOVE_BACKWARDS: ((), "S"),
         ACT_MOVE_LEFT: ((), "A"),
         ACT_MOVE_RIGHT: ((), "D"),
+        ACT_CURSOR_UP: ((), PageUp),
+        ACT_CURSOR_DOWN: ((), PageDown),
+        ACT_CURSOR_FORWARDS: ((), Up),
+        ACT_CURSOR_BACKWARDS: ((), Down),
+        ACT_CURSOR_LEFT: ((), Left),
+        ACT_CURSOR_RIGHT: ((), Right),
         ACT_BOX_CLICK: ((), MouseLeft),
         ACT_BOX_CLICK_ADD: ((Control,), MouseLeft),
         ACT_CHANGE_MOUSE_MODE: ((), MouseRight),
@@ -108,6 +138,12 @@ PresetKeybinds: KeybindContainer = {
         ACT_MOVE_BACKWARDS: ((), "K"),
         ACT_MOVE_LEFT: ((), "J"),
         ACT_MOVE_RIGHT: ((), "L"),
+        ACT_CURSOR_UP: ((), PageUp),
+        ACT_CURSOR_DOWN: ((), PageDown),
+        ACT_CURSOR_FORWARDS: ((), Up),
+        ACT_CURSOR_BACKWARDS: ((), Down),
+        ACT_CURSOR_LEFT: ((), Left),
+        ACT_CURSOR_RIGHT: ((), Right),
         ACT_BOX_CLICK: ((), MouseLeft),
         ACT_BOX_CLICK_ADD: ((Control,), MouseLeft),
         ACT_CHANGE_MOUSE_MODE: ((), MouseRight),
@@ -129,6 +165,12 @@ PresetKeybinds: KeybindContainer = {
         ACT_MOVE_BACKWARDS: ((), "K"),
         ACT_MOVE_LEFT: ((), "J"),
         ACT_MOVE_RIGHT: ((), "L"),
+        ACT_CURSOR_UP: ((), PageUp),
+        ACT_CURSOR_DOWN: ((), PageDown),
+        ACT_CURSOR_FORWARDS: ((), Up),
+        ACT_CURSOR_BACKWARDS: ((), Down),
+        ACT_CURSOR_LEFT: ((), Left),
+        ACT_CURSOR_RIGHT: ((), Right),
         ACT_BOX_CLICK: ((), MouseLeft),
         ACT_BOX_CLICK_ADD: ((Control,), MouseLeft),
         ACT_CHANGE_MOUSE_MODE: ((), MouseRight),
@@ -170,10 +212,18 @@ ActionGroups = OrderedDict([
     ("select_mode", [
         ACT_BOX_CLICK,
         ACT_BOX_CLICK_ADD,
+        ACT_CURSOR_UP,
+        ACT_CURSOR_DOWN,
+        ACT_CURSOR_FORWARDS,
+        ACT_CURSOR_BACKWARDS,
+        ACT_CURSOR_LEFT,
+        ACT_CURSOR_RIGHT,
         ACT_INCR_SELECT_DISTANCE,
         ACT_DECR_SELECT_DISTANCE,
         ACT_DESELECT_ALL_BOXES,
         ACT_DESELECT_BOX,
         ACT_INSPECT_BLOCK,
     ]),
+    # ("paste_mode", []),
+    # ("operation", []),
 ])

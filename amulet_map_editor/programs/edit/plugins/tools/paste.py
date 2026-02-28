@@ -3,7 +3,6 @@ from typing import TYPE_CHECKING, Tuple, Union, Type
 import logging
 import math
 import numpy
-import weakref
 
 from OpenGL.GL import (
     glClear,
@@ -26,13 +25,17 @@ from amulet_map_editor import lang
 from amulet_map_editor.api import image
 from amulet_map_editor.api.wx.util.validators import IntValidator, FloatValidator
 from amulet_map_editor.api.wx.ui.simple import SimpleScrollablePanel
-from amulet_map_editor.api.opengl.camera import Projection, Camera
+from amulet_map_editor.api.opengl.camera import Projection
 from amulet_map_editor.api.opengl.mesh.level import RenderLevel
 from amulet_map_editor.programs.edit.api.key_config import (
-    KeybindGroup,
+    ACT_CURSOR_UP,
+    ACT_CURSOR_DOWN,
+    ACT_CURSOR_FORWARDS,
+    ACT_CURSOR_BACKWARDS,
+    ACT_CURSOR_LEFT,
+    ACT_CURSOR_RIGHT,
 )
 from amulet_map_editor.programs.edit.api.operations import OperationSuccessful
-from amulet_map_editor.programs.edit.api.ui.nudge_button import NudgeButton
 from amulet_map_editor.programs.edit.api.ui.tool import DefaultBaseToolUI
 from amulet_map_editor.programs.edit.api.behaviour import StaticSelectionBehaviour
 from amulet_map_editor.programs.edit.api.behaviour.pointer_behaviour import (
@@ -41,10 +44,10 @@ from amulet_map_editor.programs.edit.api.behaviour.pointer_behaviour import (
     PointChangeEvent,
 )
 from amulet_map_editor.programs.edit.api.events import (
-    InputPressEvent,
-    EVT_INPUT_PRESS,
+    InputHeldEvent,
+    EVT_INPUT_HELD,
 )
-from amulet_map_editor.programs.edit.api.key_config import ACT_BOX_CLICK
+from amulet_map_editor.api.opengl.matrix import rotation_matrix_xy
 
 if TYPE_CHECKING:
     from amulet_map_editor.programs.edit.api.canvas import EditCanvas
@@ -234,25 +237,6 @@ class RotationTupleInput(TupleFloatInput):
         self._round_value(self.z)
 
 
-class MoveButton(NudgeButton):
-    def __init__(
-        self,
-        parent: wx.Window,
-        camera: Camera,
-        keybinds: KeybindGroup,
-        label: str,
-        tooltip: str,
-        paste_tool: "PasteTool",
-    ):
-        super().__init__(parent, camera, keybinds, label, tooltip)
-        self._paste_tool = weakref.ref(paste_tool)
-
-    def _move(self, offset: Tuple[int, int, int]):
-        ox, oy, oz = offset
-        x, y, z = self._paste_tool().location
-        self._paste_tool().location = x + ox, y + oy, z + oz
-
-
 class PasteTool(wx.BoxSizer, DefaultBaseToolUI):
     def __init__(self, canvas: "EditCanvas"):
         wx.BoxSizer.__init__(self, wx.HORIZONTAL)
@@ -260,7 +244,6 @@ class PasteTool(wx.BoxSizer, DefaultBaseToolUI):
 
         self._selection = StaticSelectionBehaviour(self.canvas)
         self._cursor = PointerBehaviour(self.canvas)
-        self._moving = False
         self._is_enabled = False
 
         self._paste_panel = SimpleScrollablePanel(canvas.GetParent())
@@ -322,19 +305,14 @@ class PasteTool(wx.BoxSizer, DefaultBaseToolUI):
             border=5,
         )
 
-        self._move_button = MoveButton(
+        move_hint = wx.StaticText(
             self._paste_panel,
-            self.canvas.camera,
-            self.canvas.key_binds,
-            lang.get("program_3d_edit.paste_tool.move_selection_label"),
-            lang.get("program_3d_edit.paste_tool.move_selection_tooltip"),
-            self,
+            label=lang.get("program_3d_edit.paste_tool.move_with_arrows_label"),
         )
-        self._paste_sizer.Add(
-            self._move_button,
-            flag=BottomLeftRightExpand,
-            border=5,
+        move_hint.SetToolTip(
+            lang.get("program_3d_edit.paste_tool.move_with_arrows_tooltip")
         )
+        self._paste_sizer.Add(move_hint, 0, BottomLeftRight, 5)
 
         add_line()
 
@@ -507,15 +485,14 @@ class PasteTool(wx.BoxSizer, DefaultBaseToolUI):
         self._selection.bind_events()
         self._cursor.bind_events()
         self.canvas.Bind(EVT_POINT_CHANGE, self._on_pointer_change)
-        self.canvas.Bind(EVT_INPUT_PRESS, self._on_input_press)
+        self.canvas.Bind(EVT_INPUT_HELD, self._on_input_held)
         self.canvas.Bind(wx.EVT_SIZE, self._on_resize)
 
     def enable(self):
         super().enable()
-        self._move_button.enable()
         self._selection.update_selection()
-        self._moving = False
         self._paste_panel.Show()
+        wx.CallAfter(self.canvas.SetFocus)
         self._resize()
 
     def set_state(self, state):
@@ -534,19 +511,39 @@ class PasteTool(wx.BoxSizer, DefaultBaseToolUI):
 
         self._paste_panel.Enable()
         self._is_enabled = True
+        
+        # Force-refresh pointer so first paste does not use the default (0, 0, 0)
+        self._cursor._manual_cursor_mode = False
+        self._cursor._pointer_moved = True
+        self._cursor._update_pointer()
+
+        # Get current pointer position
+        current_pos = self._cursor.pointer_base
+        paste_location = tuple(current_pos.tolist())
+        
+        # Clear and add the structure with the correct location
         self.canvas.renderer.fake_levels.clear()
         self.canvas.renderer.fake_levels.append(
-            structure, dimension, (0, 0, 0), (1, 1, 1), (0, 0, 0)
+            structure, dimension, paste_location, (1, 1, 1), (0, 0, 0)
         )
-        self._moving = True
+        
+        # Now enable manual cursor mode and sync positions
+        self._cursor._manual_cursor_mode = True
+        self._cursor._manual_cursor_pos = list(paste_location)
+        self._cursor._pointer_moved = True
+        
+        # Update UI to show the location
+        self._location.value = paste_location
 
     def disable(self):
         super().disable()
-        self._move_button.disable()
         self._paste_panel.Disable()
         self._is_enabled = False
         self.canvas.renderer.fake_levels.clear()
         self._paste_panel.Hide()
+        
+        # Exit manual cursor mode
+        self._cursor._manual_cursor_mode = False
 
     @property
     def location(self) -> PointCoordinates:
@@ -559,6 +556,11 @@ class PasteTool(wx.BoxSizer, DefaultBaseToolUI):
         Will update the UI and the renderer."""
         self._location.value = location
         self._update_transform()
+        
+        # Update manual cursor position to match paste location (use actual UI values)
+        if self._cursor._manual_cursor_mode:
+            self._cursor._manual_cursor_pos = list(self._location.value)
+            self._cursor._pointer_moved = True
 
     def _on_free_rotation_change(self, evt):
         if self._free_rotation.GetValue():
@@ -646,13 +648,7 @@ class PasteTool(wx.BoxSizer, DefaultBaseToolUI):
         self._update_transform()
 
     def _on_pointer_change(self, evt: PointChangeEvent):
-        if self._is_enabled and self._moving:
-            self.canvas.renderer.fake_levels.active_transform = (
-                evt.point,
-                self._scale.value,
-                self._rotation_radians(),
-            )
-            self._location.value = evt.point
+        # Paste movement is arrow-key driven only.
         evt.Skip()
 
     def _on_transform_change(self, evt):
@@ -667,17 +663,52 @@ class PasteTool(wx.BoxSizer, DefaultBaseToolUI):
             self._rotation_radians(),
         )
 
-    def _on_input_press(self, evt: InputPressEvent):
-        if evt.action_id == ACT_BOX_CLICK:
-            if self._is_enabled:
-                self._moving = not self._moving
-                if self._moving:
-                    self.canvas.renderer.fake_levels.active_transform = (
-                        self._location.value,
-                        self._scale.value,
-                        self._rotation_radians(),
-                    )
+    def _on_input_held(self, evt: InputHeldEvent):
+        if not self._is_enabled:
+            evt.Skip()
+            return
+
+        x = y = z = 0
+        if ACT_CURSOR_UP in evt.action_ids:
+            y += 1
+        if ACT_CURSOR_DOWN in evt.action_ids:
+            y -= 1
+        if ACT_CURSOR_FORWARDS in evt.action_ids:
+            z += 1
+        if ACT_CURSOR_BACKWARDS in evt.action_ids:
+            z -= 1
+        if ACT_CURSOR_LEFT in evt.action_ids:
+            x += 1
+        if ACT_CURSOR_RIGHT in evt.action_ids:
+            x -= 1
+
+        if any((x, y, z)):
+            ox, oy, oz = self._rotate_offset((x, y, z))
+            lx, ly, lz = self.location
+            self.location = lx + ox, ly + oy, lz + oz
+            
+            # Update manual cursor position to match paste location
+            self._cursor._manual_cursor_pos[0] += ox
+            self._cursor._manual_cursor_pos[1] += oy
+            self._cursor._manual_cursor_pos[2] += oz
+            self._cursor._pointer_moved = True
+
         evt.Skip()
+
+    def _rotate_offset(self, offset: Tuple[int, int, int]) -> Tuple[int, int, int]:
+        x, y, z = offset
+        ry = self.canvas.camera.rotation[0]
+        x, y, z, _ = (
+            numpy.round(
+                numpy.matmul(
+                    rotation_matrix_xy(0, -math.radians(round(ry / 90) * 90)),
+                    (x, y, z, 0),
+                )
+            )
+            .astype(int)
+            .tolist()
+        )
+        return x, y, z
 
     def _paste_operation(self):
         if all(self._scale.value):

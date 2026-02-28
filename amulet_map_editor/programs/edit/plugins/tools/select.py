@@ -1,5 +1,7 @@
 from typing import TYPE_CHECKING, Callable, Tuple
 import logging
+import math
+import math
 
 import wx
 from OpenGL.GL import (
@@ -26,9 +28,19 @@ from amulet_map_editor.programs.edit.api.behaviour.block_selection_behaviour imp
 )
 from amulet_map_editor.programs.edit.api.ui.tool import DefaultBaseToolUI
 from amulet_map_editor.programs.edit.api.key_config import (
-    KeybindGroup,
+    ACT_CURSOR_UP,
+    ACT_CURSOR_DOWN,
+    ACT_CURSOR_FORWARDS,
+    ACT_CURSOR_BACKWARDS,
+    ACT_CURSOR_LEFT,
+    ACT_CURSOR_RIGHT,
 )
-from amulet_map_editor.programs.edit.api.ui.nudge_button import NudgeButton
+from amulet_map_editor.programs.edit.api.events import (
+    InputHeldEvent,
+    EVT_INPUT_HELD,
+)
+from amulet_map_editor.api.opengl.matrix import rotation_matrix_xy
+import numpy
 
 if TYPE_CHECKING:
     from amulet_map_editor.programs.edit.api.canvas import EditCanvas
@@ -36,45 +48,6 @@ if TYPE_CHECKING:
 
 log = logging.getLogger(__name__)
 paint_log_count = 0
-
-
-class BaseSelectionMoveButton(NudgeButton):
-    def __init__(
-        self,
-        parent: wx.Window,
-        camera: Camera,
-        keybinds: KeybindGroup,
-        label: str,
-        tooltip: str,
-        selection: BlockSelectionBehaviour,
-    ):
-        super().__init__(parent, camera, keybinds, label, tooltip)
-        self._selection = selection
-
-
-class Point1MoveButton(BaseSelectionMoveButton):
-    def _move(self, offset: Tuple[int, int, int]):
-        ox, oy, oz = offset
-        (x, y, z), point2 = self._selection.active_block_positions
-        self._selection.active_block_positions = (x + ox, y + oy, z + oz), point2
-
-
-class Point2MoveButton(BaseSelectionMoveButton):
-    def _move(self, offset: Tuple[int, int, int]):
-        ox, oy, oz = offset
-        point1, (x, y, z) = self._selection.active_block_positions
-        self._selection.active_block_positions = point1, (x + ox, y + oy, z + oz)
-
-
-class SelectionMoveButton(BaseSelectionMoveButton):
-    def _move(self, offset: Tuple[int, int, int]):
-        ox, oy, oz = offset
-        (x1, y1, z1), (x2, y2, z2) = self._selection.active_block_positions
-        self._selection.active_block_positions = (x1 + ox, y1 + oy, z1 + oz), (
-            x2 + ox,
-            y2 + oy,
-            z2 + oz,
-        )
 
 
 class SelectTool(wx.BoxSizer, DefaultBaseToolUI):
@@ -105,7 +78,12 @@ class SelectTool(wx.BoxSizer, DefaultBaseToolUI):
             button = wx.Button(self._button_panel, label=label)
             button.SetToolTip(tooltip)
             button_sizer.Add(button, 0, wx.ALL | wx.EXPAND, 5)
-            button.Bind(wx.EVT_BUTTON, action)
+            def wrapped_action(evt):
+                action(evt)
+                wx.CallAfter(self.canvas.SetFocus)
+
+            button.Bind(wx.EVT_BUTTON, wrapped_action)
+            button.Bind(wx.EVT_ENTER_WINDOW, self._on_tool_ui_hover)
 
         add_button(
             lang.get("program_3d_edit.select_tool.delete_button"),
@@ -183,41 +161,60 @@ class SelectTool(wx.BoxSizer, DefaultBaseToolUI):
             lang.get("program_3d_edit.select_tool.box_size_tooltip")
         )
 
-        self._point1_move = Point1MoveButton(
+        # Radio buttons for move mode
+        move_radio_sizer = wx.BoxSizer(wx.VERTICAL)
+        button_sizer.Add(move_radio_sizer, 0, wx.ALL | wx.EXPAND, 5)
+        
+        move_label = wx.StaticText(
             self._button_panel,
-            self.canvas.camera,
-            self.canvas.key_binds,
-            lang.get("program_3d_edit.select_tool.button_point1"),
-            lang.get("program_3d_edit.select_tool.button_point1_tooltip"),
-            self._selection,
+            label=lang.get("program_3d_edit.select_tool.move_mode_label")
         )
-        self._point1_move.SetBackgroundColour((160, 215, 145))
-        self._point1_move.Disable()
-        button_sizer.Add(self._point1_move, 0, wx.ALL | wx.EXPAND, 5)
+        move_radio_sizer.Add(move_label, 0, wx.ALL, 2)
+        
+        self._move_point1_radio = wx.RadioButton(
+            self._button_panel,
+            label=lang.get("program_3d_edit.select_tool.button_point1"),
+            style=wx.RB_GROUP
+        )
+        self._move_point1_radio.SetToolTip(
+            lang.get("program_3d_edit.select_tool.button_point1_tooltip")
+        )
+        self._move_point1_radio.SetBackgroundColour((160, 215, 145))
+        self._move_point1_radio.Disable()
+        self._move_point1_radio.Bind(wx.EVT_RADIOBUTTON, self._on_move_target_change)
+        self._move_point1_radio.Bind(wx.EVT_ENTER_WINDOW, self._on_tool_ui_hover)
+        move_radio_sizer.Add(self._move_point1_radio, 0, wx.ALL, 2)
+        
+        self._move_point2_radio = wx.RadioButton(
+            self._button_panel,
+            label=lang.get("program_3d_edit.select_tool.button_point2")
+        )
+        self._move_point2_radio.SetToolTip(
+            lang.get("program_3d_edit.select_tool.button_point2_tooltip")
+        )
+        self._move_point2_radio.SetBackgroundColour((150, 150, 215))
+        self._move_point2_radio.Disable()
+        self._move_point2_radio.Bind(wx.EVT_RADIOBUTTON, self._on_move_target_change)
+        self._move_point2_radio.Bind(wx.EVT_ENTER_WINDOW, self._on_tool_ui_hover)
+        move_radio_sizer.Add(self._move_point2_radio, 0, wx.ALL, 2)
+        
+        self._move_selection_radio = wx.RadioButton(
+            self._button_panel,
+            label=lang.get("program_3d_edit.select_tool.button_selection_box")
+        )
+        self._move_selection_radio.SetToolTip(
+            lang.get("program_3d_edit.select_tool.button_selection_box_tooltip")
+        )
+        self._move_selection_radio.SetBackgroundColour((255, 255, 255))
+        self._move_selection_radio.SetValue(True)  # Default selection
+        self._move_selection_radio.Disable()
+        self._move_selection_radio.Bind(
+            wx.EVT_RADIOBUTTON, self._on_move_target_change
+        )
+        self._move_selection_radio.Bind(wx.EVT_ENTER_WINDOW, self._on_tool_ui_hover)
+        move_radio_sizer.Add(self._move_selection_radio, 0, wx.ALL, 2)
 
-        self._point2_move = Point2MoveButton(
-            self._button_panel,
-            self.canvas.camera,
-            self.canvas.key_binds,
-            lang.get("program_3d_edit.select_tool.button_point2"),
-            lang.get("program_3d_edit.select_tool.button_point2_tooltip"),
-            self._selection,
-        )
-        self._point2_move.SetBackgroundColour((150, 150, 215))
-        self._point2_move.Disable()
-        button_sizer.Add(self._point2_move, 0, wx.ALL | wx.EXPAND, 5)
-
-        self._selection_move = SelectionMoveButton(
-            self._button_panel,
-            self.canvas.camera,
-            self.canvas.key_binds,
-            lang.get("program_3d_edit.select_tool.button_selection_box"),
-            lang.get("program_3d_edit.select_tool.button_selection_box_tooltip"),
-            self._selection,
-        )
-        self._selection_move.SetBackgroundColour((255, 255, 255))
-        self._selection_move.Disable()
-        button_sizer.Add(self._selection_move, 0, wx.ALL | wx.EXPAND, 5)
+        self._button_panel.Bind(wx.EVT_ENTER_WINDOW, self._on_tool_ui_hover)
 
         self._resize()
 
@@ -231,6 +228,7 @@ class SelectTool(wx.BoxSizer, DefaultBaseToolUI):
         self.canvas.Bind(EVT_RENDER_BOX_DISABLE_INPUTS, self._disable_inputs)
         self.canvas.Bind(EVT_RENDER_BOX_ENABLE_INPUTS, self._enable_inputs)
         self.canvas.Bind(EVT_SELECTION_CHANGE, self._on_selection_change)
+        self.canvas.Bind(EVT_INPUT_HELD, self._on_input_held)
         self.canvas.Bind(wx.EVT_SIZE, self._on_resize)
         self._selection.bind_events()
         self._inspect_block.bind_events()
@@ -239,17 +237,12 @@ class SelectTool(wx.BoxSizer, DefaultBaseToolUI):
         super().enable()
         self._selection.enable()
         self._pull_selection()
-        self._point1_move.enable()
-        self._point2_move.enable()
-        self._selection_move.enable()
         self._button_panel.Show()
+        wx.CallAfter(self.canvas.SetFocus)
         self._resize()
 
     def disable(self):
         super().disable()
-        self._point1_move.disable()
-        self._point2_move.disable()
-        self._selection_move.disable()
         self._button_panel.Hide()
 
     def _add_spin_ctrl(
@@ -274,6 +267,7 @@ class SelectTool(wx.BoxSizer, DefaultBaseToolUI):
         obj.Disable()
         obj.SetToolTip(tooltip)
         obj.SetBackgroundColour(colour)
+        obj.Bind(wx.EVT_ENTER_WINDOW, self._on_tool_ui_hover)
         return obj
 
     def _box_input_change(self, _):
@@ -320,21 +314,92 @@ class SelectTool(wx.BoxSizer, DefaultBaseToolUI):
 
     def _enable_inputs(self, evt):
         self._set_scroll_state(True)
-        self._point1_move.Enable()
-        self._point2_move.Enable()
-        self._selection_move.Enable()
+        self._move_point1_radio.Enable()
+        self._move_point2_radio.Enable()
+        self._move_selection_radio.Enable()
         evt.Skip()
 
     def _disable_inputs(self, evt):
         self._set_scroll_state(False)
-        self._point1_move.Disable()
-        self._point2_move.Disable()
-        self._selection_move.Disable()
+        self._move_point1_radio.Disable()
+        self._move_point2_radio.Disable()
+        self._move_selection_radio.Disable()
         evt.Skip()
 
     def _set_scroll_state(self, state: bool):
         for scroll in (self._x1, self._y1, self._z1, self._x2, self._y2, self._z2):
             scroll.Enable(state)
+
+    def _on_move_target_change(self, evt: wx.CommandEvent):
+        wx.CallAfter(self.canvas.SetFocus)
+        evt.Skip()
+
+    def _on_tool_ui_hover(self, evt: wx.MouseEvent):
+        wx.CallAfter(self.canvas.SetFocus)
+        evt.Skip()
+
+    def _on_input_held(self, evt: InputHeldEvent):
+        """Handle cursor movement with arrow keys and page up/down."""
+        x = y = z = 0
+
+        if ACT_CURSOR_UP in evt.action_ids:
+            y += 1
+        if ACT_CURSOR_DOWN in evt.action_ids:
+            y -= 1
+        if ACT_CURSOR_FORWARDS in evt.action_ids:
+            z += 1
+        if ACT_CURSOR_BACKWARDS in evt.action_ids:
+            z -= 1
+        if ACT_CURSOR_LEFT in evt.action_ids:
+            x += 1
+        if ACT_CURSOR_RIGHT in evt.action_ids:
+            x -= 1
+
+        if any((x, y, z)):
+            offset = self._rotate_offset((x, y, z))
+            if self._move_point1_radio.GetValue():
+                self._move_point1(offset)
+            elif self._move_point2_radio.GetValue():
+                self._move_point2(offset)
+            elif self._move_selection_radio.GetValue():
+                self._move_selection(offset)
+
+        evt.Skip()
+
+    def _rotate_offset(self, offset: Tuple[int, int, int]) -> Tuple[int, int, int]:
+        """Rotate movement offset based on camera rotation."""
+        x, y, z = offset
+        ry = self.canvas.camera.rotation[0]
+        x, y, z, _ = (
+            numpy.round(
+                numpy.matmul(
+                    rotation_matrix_xy(0, -math.radians(round(ry / 90) * 90)),
+                    (x, y, z, 0),
+                )
+            )
+            .astype(int)
+            .tolist()
+        )
+        return x, y, z
+
+    def _move_point1(self, offset: Tuple[int, int, int]):
+        ox, oy, oz = offset
+        (x, y, z), point2 = self._selection.active_block_positions
+        self._selection.active_block_positions = (x + ox, y + oy, z + oz), point2
+
+    def _move_point2(self, offset: Tuple[int, int, int]):
+        ox, oy, oz = offset
+        point1, (x, y, z) = self._selection.active_block_positions
+        self._selection.active_block_positions = point1, (x + ox, y + oy, z + oz)
+
+    def _move_selection(self, offset: Tuple[int, int, int]):
+        ox, oy, oz = offset
+        (x1, y1, z1), (x2, y2, z2) = self._selection.active_block_positions
+        self._selection.active_block_positions = (x1 + ox, y1 + oy, z1 + oz), (
+            x2 + ox,
+            y2 + oy,
+            z2 + oz,
+        )
 
     def _on_resize(self, evt):
         self._resize()

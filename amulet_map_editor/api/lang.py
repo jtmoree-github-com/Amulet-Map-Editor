@@ -30,6 +30,25 @@ _default_language = "en"
 _active_language: Optional[str] = None
 
 
+def _get_system_language() -> Optional[str]:
+    try:
+        language, _ = locale.getlocale()
+        if language:
+            return language
+    except Exception:
+        pass
+
+    try:
+        locale.setlocale(locale.LC_CTYPE, "")
+        language, _ = locale.getlocale()
+        if language:
+            return language
+    except Exception:
+        pass
+
+    return None
+
+
 def lang_dirs() -> Tuple[str, ...]:
     """Tuple of known language directories."""
     return tuple(_lang_dirs)
@@ -76,8 +95,8 @@ def get_language() -> str:
         # find out what language the user is using.
         try:
             # try getting the OS language
-            _active_language = locale.getdefaultlocale()[0]
-        except:
+            _active_language = _get_system_language()
+        except Exception:
             # if that fails use the default language
             _active_language = _default_language
 
