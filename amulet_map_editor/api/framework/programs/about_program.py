@@ -4,7 +4,6 @@ from typing import TYPE_CHECKING
 from amulet_map_editor.api import lang
 from amulet_map_editor.api.framework import app
 from amulet_map_editor.api.wx.ui.simple import SimplePanel
-from amulet_map_editor.api.wx.ui.select_world import WorldUI
 from amulet_map_editor.api.framework.programs import BaseProgram
 
 if TYPE_CHECKING:
@@ -30,6 +29,8 @@ class AboutProgram(SimplePanel, BaseProgram):
             0,
             wx.ALL | wx.CENTER,
         )
+        # Import here to avoid circular dependency
+        from amulet_map_editor.api.wx.ui.select_world import WorldUI
         self.add_object(WorldUI(self, self.world.level_wrapper), 0, wx.ALL | wx.CENTER)
         self.add_object(
             wx.StaticText(

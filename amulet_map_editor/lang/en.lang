@@ -226,6 +226,7 @@ action.act_change_projection=Toggle Projection
 
 ## Menu bar
 program_3d_edit.menu_bar.file.save=Save
+program_3d_edit.menu_bar.file.preferences=Preferences...
 program_3d_edit.menu_bar.edit.menu_name=&Edit
 program_3d_edit.menu_bar.edit.undo=Undo
 program_3d_edit.menu_bar.edit.redo=Redo

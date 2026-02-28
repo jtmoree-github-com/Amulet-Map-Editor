@@ -12,15 +12,27 @@ from amulet import load_format
 from amulet.api.errors import FormatError
 
 from amulet_map_editor import lang, CONFIG
-from amulet_map_editor.api.wx.ui import simple
 from amulet_map_editor.api.wx.ui.traceback_dialog import TracebackDialog
 from amulet_map_editor.api.wx.util.ui_preferences import preserve_ui_preferences
 from amulet_map_editor.api.framework import app
+from amulet_map_editor.api.framework.pages.base_page import BasePageUI
 
 if TYPE_CHECKING:
     from amulet.api.wrapper import WorldFormatWrapper
 
 log = logging.getLogger(__name__)
+
+EDIT_CONFIG_ID = "amulet_edit"
+DEFAULT_RECENT_WORLDS_LIMIT = 5
+
+
+def get_recent_worlds_limit() -> int:
+    edit_config = CONFIG.get(EDIT_CONFIG_ID, {})
+    options = edit_config.get("options", {}) if isinstance(edit_config, dict) else {}
+    limit = options.get("recent_worlds_limit", DEFAULT_RECENT_WORLDS_LIMIT)
+    if not isinstance(limit, int):
+        limit = DEFAULT_RECENT_WORLDS_LIMIT
+    return max(1, min(100, limit))
 
 
 # Windows 	%APPDATA%\.minecraft
@@ -182,8 +194,7 @@ class WorldUI(wx.Panel):
     """A Panel UI element with the world image, name and description"""
 
     def __init__(self, parent: wx.Window, world_format: "WorldFormatWrapper"):
-        super().__init__(parent)
-        self.SetWindowStyle(wx.TAB_TRAVERSAL | wx.BORDER_RAISED)
+        super().__init__(parent, style=wx.TAB_TRAVERSAL | wx.BORDER_RAISED)
 
         sizer = wx.BoxSizer(wx.HORIZONTAL)
         self.SetSizer(sizer)
@@ -220,10 +231,134 @@ class WorldUIButton(WorldUI):
         super().__init__(parent, world_format)
         self.path = world_format.path
         self.open_world_callback = open_world_callback
+        self._is_hovered = False
+        self._is_focused = False
 
+        self._default_bg = wx.SystemSettings.GetColour(wx.SYS_COLOUR_WINDOW)
+        self._default_fg = wx.SystemSettings.GetColour(wx.SYS_COLOUR_WINDOWTEXT)
+        self._focus_bg = wx.SystemSettings.GetColour(wx.SYS_COLOUR_HIGHLIGHT)
+        self._focus_fg = wx.SystemSettings.GetColour(wx.SYS_COLOUR_HIGHLIGHTTEXT)
+        self._hover_bg = wx.SystemSettings.GetColour(wx.SYS_COLOUR_3DLIGHT)
+
+        self.SetBackgroundColour(self._default_bg)
+        self.world_name.SetForegroundColour(self._default_fg)
+        self._apply_visual_state()
+
+        self.Bind(wx.EVT_LEFT_DOWN, self._on_left_down)
+        self.img.Bind(wx.EVT_LEFT_DOWN, self._on_left_down)
+        self.world_name.Bind(wx.EVT_LEFT_DOWN, self._on_left_down)
         self.Bind(wx.EVT_LEFT_UP, self._call_callback)
         self.img.Bind(wx.EVT_LEFT_UP, self._call_callback)
-        self.world_name.Bind(wx.EVT_LEFT_DOWN, self._call_callback)
+        self.world_name.Bind(wx.EVT_LEFT_UP, self._call_callback)
+
+        self.Bind(wx.EVT_ENTER_WINDOW, self._on_enter_window)
+        self.img.Bind(wx.EVT_ENTER_WINDOW, self._on_enter_window)
+        self.world_name.Bind(wx.EVT_ENTER_WINDOW, self._on_enter_window)
+        self.Bind(wx.EVT_LEAVE_WINDOW, self._on_leave_window)
+        self.img.Bind(wx.EVT_LEAVE_WINDOW, self._on_leave_window)
+        self.world_name.Bind(wx.EVT_LEAVE_WINDOW, self._on_leave_window)
+
+        self.Bind(wx.EVT_SET_FOCUS, self._on_set_focus)
+        self.Bind(wx.EVT_KILL_FOCUS, self._on_kill_focus)
+        self.Bind(wx.EVT_CHAR_HOOK, self._on_key_down)
+        self.Bind(wx.EVT_KEY_DOWN, self._on_key_down)
+        self.Bind(wx.EVT_NAVIGATION_KEY, self._on_navigation_key)
+
+    def AcceptsFocus(self) -> bool:
+        return True
+
+    def AcceptsFocusFromKeyboard(self) -> bool:
+        return True
+
+    def _on_key_down(self, evt: wx.KeyEvent):
+        key_code = evt.GetKeyCode()
+
+        if key_code in (wx.WXK_RETURN, wx.WXK_NUMPAD_ENTER, wx.WXK_SPACE):
+            self.open_world_callback(self.path)
+            return  # Consume the event
+        elif key_code in (wx.WXK_UP, wx.WXK_NUMPAD_UP, wx.WXK_DOWN, wx.WXK_NUMPAD_DOWN):
+            world_list = self.GetParent()
+            if isinstance(world_list, WorldList) and self in world_list.worlds:
+                index = world_list.worlds.index(self)
+                delta = -1 if key_code in (wx.WXK_UP, wx.WXK_NUMPAD_UP) else 1
+                next_index = max(0, min(len(world_list.worlds) - 1, index + delta))
+                if next_index != index:
+                    world_list.worlds[next_index].SetFocus()
+                    return  # Consume the event
+        elif key_code == wx.WXK_TAB:
+            world_list = self.GetParent()
+            if isinstance(world_list, WorldList) and self in world_list.worlds:
+                index = world_list.worlds.index(self)
+                delta = -1 if evt.ShiftDown() else 1
+                next_index = index + delta
+                if 0 <= next_index < len(world_list.worlds):
+                    world_list.worlds[next_index].SetFocus()
+                    return  # Consume the event
+                else:
+                    direction = (
+                        wx.NavigationKeyEvent.IsBackward
+                        if evt.ShiftDown()
+                        else wx.NavigationKeyEvent.IsForward
+                    )
+                    self.Navigate(direction)
+                    return  # Consume the event
+        
+        evt.Skip()
+
+    def _on_navigation_key(self, evt: wx.NavigationKeyEvent):
+        world_list = self.GetParent()
+        if not isinstance(world_list, WorldList) or self not in world_list.worlds:
+            evt.Skip()
+            return
+
+        index = world_list.worlds.index(self)
+        delta = 1 if evt.GetDirection() else -1
+        next_index = index + delta
+
+        if 0 <= next_index < len(world_list.worlds):
+            world_list.worlds[next_index].SetFocus()
+            return
+
+        evt.Skip()
+
+    def _on_set_focus(self, evt: wx.FocusEvent):
+        self._is_focused = True
+        self._apply_visual_state()
+        evt.Skip()
+
+    def _on_kill_focus(self, evt: wx.FocusEvent):
+        self._is_focused = False
+        self._apply_visual_state()
+        evt.Skip()
+
+    def _on_enter_window(self, evt: wx.MouseEvent):
+        self._is_hovered = True
+        self._apply_visual_state()
+        evt.Skip()
+
+    def _on_leave_window(self, evt: wx.MouseEvent):
+        self._is_hovered = False
+        self._apply_visual_state()
+        evt.Skip()
+
+    def _on_left_down(self, evt: wx.MouseEvent):
+        self.SetFocus()
+        evt.Skip()
+
+    def _apply_visual_state(self):
+        if self._is_focused:
+            bg = self._focus_bg
+            fg = self._focus_fg
+        elif self._is_hovered:
+            bg = self._hover_bg
+            fg = self._default_fg
+        else:
+            bg = self._default_bg
+            fg = self._default_fg
+
+        self.SetBackgroundColour(bg)
+        self.world_name.SetForegroundColour(fg)
+        self.Refresh()
 
     def _call_callback(self, evt):
         self.open_world_callback(self.path)
@@ -280,7 +415,8 @@ class CollapsibleWorldListUI(wx.CollapsiblePane):
         panel = self.GetPane()
         panel.sizer = wx.BoxSizer(wx.VERTICAL)
         panel.SetSizer(panel.sizer)
-        panel.sizer.Add(WorldList(panel, paths, open_world_callback), 0, wx.EXPAND)
+        self.world_list = WorldList(panel, paths, open_world_callback)
+        panel.sizer.Add(self.world_list, 0, wx.EXPAND)
 
     def eval_layout(self, evt):
         self.Layout()
@@ -288,34 +424,121 @@ class CollapsibleWorldListUI(wx.CollapsiblePane):
         evt.Skip()
 
 
-class ScrollableWorldsUI(simple.SimpleScrollablePanel):
-    # a frame to allow scrolling
+class ScrollableWorldsUI(wx.Panel):
+    # A tree view of all detected worlds grouped by platform and source.
     def __init__(self, parent, open_world_callback):
-        super(ScrollableWorldsUI, self).__init__(parent)
+        super().__init__(parent)
         self.open_world_callback = open_world_callback
 
-        self.dirs: Dict[str, CollapsibleWorldListUI] = {}
+        self._sizer = wx.BoxSizer(wx.VERTICAL)
+        self.SetSizer(self._sizer)
+
+        self._tree = wx.TreeCtrl(
+            self,
+            style=wx.TR_HAS_BUTTONS
+            | wx.TR_HIDE_ROOT
+            | wx.TR_LINES_AT_ROOT
+            | wx.TR_SINGLE,
+        )
+        self._sizer.Add(self._tree, 1, wx.EXPAND)
+
+        self._tree.Bind(wx.EVT_TREE_ITEM_ACTIVATED, self._on_item_activated)
+        self._tree.Bind(wx.EVT_TREE_KEY_DOWN, self._on_tree_key_down)
+
         self.reload()
 
-        self.Layout()
+    @staticmethod
+    def _platform_group(directory: str) -> str:
+        directory_lower = directory.replace("\\", "/").lower()
+        if directory_lower.endswith("/.minecraft/saves"):
+            return "Java"
+        if "minecraftworlds" in directory_lower:
+            return "Bedrock"
+        return "Other"
+
+    def _get_selected_world_path(self) -> str | None:
+        item = self._tree.GetSelection()
+        if not item.IsOk():
+            return None
+        path = self._tree.GetItemData(item)
+        if isinstance(path, str):
+            return path
+        return None
+
+    def _on_tree_key_down(self, evt: wx.TreeEvent):
+        key_code = evt.GetKeyCode()
+        if key_code in (wx.WXK_RETURN, wx.WXK_NUMPAD_ENTER, wx.WXK_SPACE):
+            path = self._get_selected_world_path()
+            if isinstance(path, str):
+                self.open_world_callback(path)
+                return
+        evt.Skip()
+
+    def _on_item_activated(self, evt: wx.TreeEvent):
+        path = self._tree.GetItemData(evt.GetItem())
+        if isinstance(path, str):
+            self.open_world_callback(path)
 
     def reload(self):
-        for val in self.dirs.values():
-            val.Destroy()
-        self.dirs.clear()
-        for group_name, directory in sorted(minecraft_world_paths, key=lambda x: x[0]):
-            if os.path.isdir(directory):
-                world_list = CollapsibleWorldListUI(
-                    self,
-                    glob.glob(os.path.join(glob.escape(directory), "*")),
-                    group_name,
-                    self.open_world_callback,
-                )
-                self.add_object(world_list, 0, wx.EXPAND)
-                self.dirs[directory] = world_list
+        self._tree.DeleteAllItems()
+        root = self._tree.AddRoot("worlds")
 
-    def OnChildFocus(self, event):
-        event.Skip()
+        platform_nodes: Dict[str, wx.TreeItemId] = {}
+        nested_section_nodes: Dict[Tuple[str, str], wx.TreeItemId] = {}
+        subsection_nodes: Dict[Tuple[str, str], wx.TreeItemId] = {}
+
+        for group_name, directory in sorted(minecraft_world_paths, key=lambda x: x[0]):
+            if not os.path.isdir(directory):
+                continue
+
+            platform_group = self._platform_group(directory)
+            tree_platform_group = "Bedrock" if platform_group in {"Bedrock", "Java"} else platform_group
+
+            if tree_platform_group not in platform_nodes:
+                platform_nodes[tree_platform_group] = self._tree.AppendItem(root, tree_platform_group)
+
+            subtree_parent = platform_nodes[tree_platform_group]
+            if platform_group == "Java":
+                nested_section_key = (tree_platform_group, "Java")
+                if nested_section_key not in nested_section_nodes:
+                    nested_section_nodes[nested_section_key] = self._tree.AppendItem(
+                        subtree_parent, "Java"
+                    )
+                subtree_parent = nested_section_nodes[nested_section_key]
+
+            subsection_key = (tree_platform_group, group_name)
+            if subsection_key not in subsection_nodes:
+                subsection_nodes[subsection_key] = self._tree.AppendItem(
+                    subtree_parent, group_name
+                )
+
+            world_formats = []
+            for world_path in glob.glob(os.path.join(glob.escape(directory), "*")):
+                if os.path.isdir(world_path):
+                    try:
+                        world_formats.append(load_format(world_path))
+                    except FormatError as e:
+                        log.info(f"Could not find loader for {world_path} {e}")
+                    except Exception:
+                        log.error(
+                            f"Error loading format wrapper for {world_path} {traceback.format_exc()}"
+                        )
+
+            for world_format in sorted(
+                world_formats, key=lambda w: w.last_played, reverse=True
+            ):
+                world_label = f"{world_format.level_name} ({world_format.game_version_string})"
+                world_item = self._tree.AppendItem(
+                    subsection_nodes[subsection_key], world_label
+                )
+                self._tree.SetItemData(world_item, world_format.path)
+
+        for platform_node in platform_nodes.values():
+            self._tree.Expand(platform_node)
+        for nested_node in nested_section_nodes.values():
+            self._tree.Expand(nested_node)
+        for subsection_node in subsection_nodes.values():
+            self._tree.Expand(subsection_node)
 
 
 class WorldSelectUI(wx.Panel):
@@ -467,12 +690,13 @@ class RecentWorldUI(wx.Panel):
     def rebuild(self, new_world: str = None):
         meta: dict = CONFIG.get("amulet_meta", {})
         recent_worlds: list = meta.setdefault("recent_worlds", [])
+        recent_worlds_limit = get_recent_worlds_limit()
         if new_world is not None:
             while new_world in recent_worlds:
                 recent_worlds.remove(new_world)
             recent_worlds.insert(0, new_world)
-            while len(recent_worlds) > 5:
-                recent_worlds.pop(5)
+            while len(recent_worlds) > recent_worlds_limit:
+                recent_worlds.pop(recent_worlds_limit)
         if self._world_list is not None:
             self._world_list.Destroy()
         self._world_list = WorldList(
@@ -504,13 +728,13 @@ class WorldSelectAndRecentUI(wx.Panel):
 
         left_sizer = wx.BoxSizer(wx.VERTICAL)
         bottom_sizer.Add(left_sizer, 1, wx.EXPAND)
-        select_world = WorldSelectUI(self, self._update_recent)
-        left_sizer.Add(select_world, 1, wx.ALL | wx.EXPAND, 5)
+        self._recent_worlds = RecentWorldUI(self, self._update_recent)
+        left_sizer.Add(self._recent_worlds, 1, wx.EXPAND, 5)
 
         right_sizer = wx.BoxSizer(wx.VERTICAL)
         bottom_sizer.Add(right_sizer, 1, wx.EXPAND)
-        self._recent_worlds = RecentWorldUI(self, self._update_recent)
-        right_sizer.Add(self._recent_worlds, 1, wx.EXPAND, 5)
+        select_world = WorldSelectUI(self, self._update_recent)
+        right_sizer.Add(select_world, 1, wx.ALL | wx.EXPAND, 5)
 
     def _update_recent(self, path):
         self._recent_worlds.rebuild(path)
@@ -547,6 +771,47 @@ class WorldSelectDialog(wx.Dialog):
             self.EndModal(0)
         else:
             self.Close()
+
+
+class WorldSelectPageUI(wx.Panel, BasePageUI):
+    """Page to select and open a world."""
+
+    def __init__(self, parent: wx.Window):
+        super().__init__(parent)
+        self._parent_notebook = parent
+
+        sizer = wx.BoxSizer(wx.VERTICAL)
+        self.SetSizer(sizer)
+
+        warning_text = wx.StaticText(
+            self,
+            label=lang.get("select_world.open_world_warning"),
+        )
+        warning_text.SetFont(wx.Font(20, wx.DEFAULT, wx.NORMAL, wx.NORMAL))
+        sizer.Add(warning_text, 0, wx.ALIGN_CENTER_HORIZONTAL | wx.TOP, 5)
+
+        bottom_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        sizer.Add(bottom_sizer, 1, wx.EXPAND)
+
+        left_sizer = wx.BoxSizer(wx.VERTICAL)
+        bottom_sizer.Add(left_sizer, 1, wx.EXPAND)
+        self._recent_worlds = RecentWorldUI(self, self._on_world_selected)
+        left_sizer.Add(self._recent_worlds, 1, wx.EXPAND, 5)
+
+        right_sizer = wx.BoxSizer(wx.VERTICAL)
+        bottom_sizer.Add(right_sizer, 1, wx.EXPAND)
+        select_world = WorldSelectUI(self, self._on_world_selected)
+        right_sizer.Add(select_world, 1, wx.ALL | wx.EXPAND, 5)
+
+    def _on_world_selected(self, path):
+        """Called when a world is selected. Updates recent worlds and opens the world."""
+        self._recent_worlds.rebuild(path)
+        # Close this tab
+        page_index = self._parent_notebook.GetPageIndex(self)
+        if page_index != wx.NOT_FOUND:
+            self._parent_notebook.DeletePage(page_index)
+        # Open the world
+        app.open_level(path)
 
 
 def open_level_from_dialog(parent: wx.Window):

@@ -7,6 +7,12 @@ from amulet_map_editor.api.lang import lang_dirs
 KeyCharacterSet = set(string.ascii_lowercase + string.digits + "_.")
 
 
+class ImportTestCase(unittest.TestCase):
+    def test_import(self):
+        """Test that the main module can be imported without circular dependencies."""
+        import amulet_map_editor
+
+
 class LangTestCase(unittest.TestCase):
     def test_lang(self):
         for lang_dir in lang_dirs():
