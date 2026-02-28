@@ -472,21 +472,6 @@ class PasteTool(wx.BoxSizer, DefaultBaseToolUI):
 
         add_line()
 
-        self._wasd_moves_cursor = wx.CheckBox(
-            self._paste_panel,
-            label=lang.get("program_3d_edit.paste_tool.wasd_moves_cursor_label"),
-        )
-        self._wasd_moves_cursor.SetToolTip(
-            lang.get("program_3d_edit.paste_tool.wasd_moves_cursor_tooltip")
-        )
-        self._paste_sizer.Add(
-            self._wasd_moves_cursor,
-            flag=BottomLeftRight,
-            border=5,
-        )
-
-        add_line()
-
         confirm_button = wx.Button(self._paste_panel, label="Confirm")
         self._paste_sizer.Add(confirm_button, 0, BottomLeftRightExpand, 5)
         confirm_button.Bind(wx.EVT_BUTTON, self._paste_confirm)
@@ -694,7 +679,7 @@ class PasteTool(wx.BoxSizer, DefaultBaseToolUI):
             self._paste_panel.SetFocus()
             self._location.x.SetFocus()
         elif self._is_enabled and evt.action_id == ACT_TOGGLE_WASD_MODE:
-            self._wasd_moves_cursor.SetValue(not self._wasd_moves_cursor.GetValue())
+            self.canvas.wasd_moves_cursor = not self.canvas.wasd_moves_cursor
         evt.Skip()
 
     def _on_transform_change(self, evt):
@@ -730,8 +715,8 @@ class PasteTool(wx.BoxSizer, DefaultBaseToolUI):
         if ACT_CURSOR_RIGHT in evt.action_ids:
             x -= 1
 
-        # If checkbox is enabled, also respond to WASD camera keys
-        if self._wasd_moves_cursor.GetValue():
+        # If move cursor mode is enabled, also respond to WASD camera keys
+        if self.canvas.wasd_moves_cursor:
             if ACT_MOVE_UP in evt.action_ids:
                 y += 1
                 wasd_consumed = True

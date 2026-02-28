@@ -347,7 +347,10 @@ program_3d_edit.goto_ui.paste_button_tooltip=Paste a previously copied coordinat
 
 ## File panel
 program_3d_edit.file_ui.version_tooltip=Platform and data version of the world
-program_3d_edit.file_ui.projection_tooltip=Change view
+program_3d_edit.file_ui.projection_tooltip=Change Perspective
+program_3d_edit.file_ui.move_camera_label=Move Camera
+program_3d_edit.file_ui.move_cursor_label=Move Cursor
+program_3d_edit.file_ui.move_button_tooltip=Toggle whether WASD keys move the camera or cursor. Hotkey: Alt+C
 program_3d_edit.file_ui.location_tooltip=Move camera
 program_3d_edit.file_ui.speed_blocks_per_second=b/s
 program_3d_edit.file_ui.speed_tooltip=Camera speed in blocks per second

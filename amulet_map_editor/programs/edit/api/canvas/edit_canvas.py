@@ -175,6 +175,22 @@ class EditCanvas(BaseEditCanvas):
         # This lock stops two threads from editing the world simultaneously
         # call run_operation to acquire it.
         self._edit_lock = RLock()
+        
+        # Track whether WASD keys should move the cursor (True) or camera (False)
+        self._wasd_moves_cursor = False
+
+    @property
+    def wasd_moves_cursor(self) -> bool:
+        """Whether WASD keys should move the cursor (True) or camera (False)."""
+        return self._wasd_moves_cursor
+
+    @wasd_moves_cursor.setter
+    def wasd_moves_cursor(self, value: bool):
+        """Set whether WASD keys should move the cursor (True) or camera (False)."""
+        if self._wasd_moves_cursor != value:
+            self._wasd_moves_cursor = value
+            if self._file_panel is not None:
+                self._file_panel.update_move_button()
 
     def _init_opengl(self):
         super()._init_opengl()

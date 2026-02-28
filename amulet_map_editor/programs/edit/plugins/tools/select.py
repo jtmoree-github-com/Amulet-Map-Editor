@@ -218,21 +218,9 @@ class SelectTool(wx.BoxSizer, DefaultBaseToolUI):
         self._move_selection_radio.Bind(wx.EVT_ENTER_WINDOW, self._on_tool_ui_hover)
         move_radio_sizer.Add(self._move_selection_radio, 0, wx.ALL, 2)
 
-        self._wasd_moves_cursor = wx.CheckBox(
-            self._button_panel,
-            label=lang.get("program_3d_edit.select_tool.wasd_moves_cursor_label"),
-        )
-        self._wasd_moves_cursor.SetToolTip(
-            lang.get("program_3d_edit.select_tool.wasd_moves_cursor_tooltip")
-        )
-        self._wasd_moves_cursor.SetBackgroundColour((255, 255, 255))
-        self._wasd_moves_cursor.Bind(wx.EVT_ENTER_WINDOW, self._on_tool_ui_hover)
-        button_sizer.Add(self._wasd_moves_cursor, 0, wx.ALL | wx.EXPAND, 5)
-
         self._button_panel.Bind(wx.EVT_ENTER_WINDOW, self._on_tool_ui_hover)
 
         self._resize()
-
     @property
     def name(self) -> str:
         return "Select"
@@ -362,7 +350,7 @@ class SelectTool(wx.BoxSizer, DefaultBaseToolUI):
         if evt.action_id == ACT_TOGGLE_MOVE_TARGET:
             self._toggle_move_target()
         elif evt.action_id == ACT_TOGGLE_WASD_MODE:
-            self._wasd_moves_cursor.SetValue(not self._wasd_moves_cursor.GetValue())
+            self.canvas.wasd_moves_cursor = not self.canvas.wasd_moves_cursor
         evt.Skip()
 
     def _toggle_move_target(self):
@@ -397,8 +385,8 @@ class SelectTool(wx.BoxSizer, DefaultBaseToolUI):
         if ACT_CURSOR_RIGHT in evt.action_ids:
             x -= 1
 
-        # If checkbox is enabled, also respond to WASD camera keys
-        if self._wasd_moves_cursor.GetValue():
+        # If move cursor mode is enabled, also respond to WASD camera keys
+        if self.canvas.wasd_moves_cursor:
             if ACT_MOVE_UP in evt.action_ids:
                 y += 1
                 wasd_consumed = True

@@ -66,6 +66,14 @@ class FilePanel(EditCanvasContainer):
         )
         self._projection_button.Bind(wx.EVT_BUTTON, self._on_projection_button)
         self._button_sizer.Add(self._projection_button)
+        
+        self._move_button = wx.Button(self._button_window, label=lang.get("program_3d_edit.file_ui.move_camera_label"))
+        self._move_button.SetToolTip(
+            lang.get("program_3d_edit.file_ui.move_button_tooltip")
+        )
+        self._move_button.Bind(wx.EVT_BUTTON, self._on_move_button)
+        self._button_sizer.Add(self._move_button)
+        
         self._location_button = wx.Button(
             self._button_window,
             label=", ".join([f"{s:.2f}" for s in self.canvas.camera.location]),
@@ -174,6 +182,17 @@ class FilePanel(EditCanvasContainer):
         else:
             self.canvas.camera.projection_mode = Projection.PERSPECTIVE
         evt.Skip()
+
+    def _on_move_button(self, evt):
+        self.canvas.wasd_moves_cursor = not self.canvas.wasd_moves_cursor
+        evt.Skip()
+
+    def update_move_button(self):
+        """Update the move button label based on the current state."""
+        if self.canvas.wasd_moves_cursor:
+            self._move_button.SetLabel(lang.get("program_3d_edit.file_ui.move_cursor_label"))
+        else:
+            self._move_button.SetLabel(lang.get("program_3d_edit.file_ui.move_camera_label"))
 
     def _change_dimension(self, evt: DimensionChangeEvent):
         """Run when the dimension attribute in the canvas is changed.
