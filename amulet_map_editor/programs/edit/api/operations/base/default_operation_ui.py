@@ -46,8 +46,10 @@ class DefaultOperationUI(OperationUI):
         self._show_pointer = False
 
     def enable(self):
+        # Preserve current projection mode (2D/3D)
+        current_projection = self.canvas.camera.projection_mode
         self._selection.update_selection()
-        self.canvas.camera.projection_mode = Projection.PERSPECTIVE
+        self.canvas.camera.projection_mode = current_projection
 
     def bind_events(self):
         self._selection.bind_events()

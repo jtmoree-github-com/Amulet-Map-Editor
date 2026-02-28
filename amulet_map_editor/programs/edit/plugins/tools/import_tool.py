@@ -32,7 +32,11 @@ class ImportTool(wx.BoxSizer, DefaultBaseToolUI):
         self._selection.bind_events()
 
     def enable(self):
+        # Preserve current projection mode (2D/3D)
+        current_projection = self.canvas.camera.projection_mode
         super().enable()
+        self.canvas.camera.projection_mode = current_projection
+        
         self._selection.update_selection()
         self._open_file()
 

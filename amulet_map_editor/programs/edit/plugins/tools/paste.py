@@ -28,12 +28,21 @@ from amulet_map_editor.api.wx.ui.simple import SimpleScrollablePanel
 from amulet_map_editor.api.opengl.camera import Projection
 from amulet_map_editor.api.opengl.mesh.level import RenderLevel
 from amulet_map_editor.programs.edit.api.key_config import (
+    ACT_BOX_CLICK,
     ACT_CURSOR_UP,
     ACT_CURSOR_DOWN,
     ACT_CURSOR_FORWARDS,
     ACT_CURSOR_BACKWARDS,
     ACT_CURSOR_LEFT,
     ACT_CURSOR_RIGHT,
+    ACT_FOCUS_PASTE_DIALOG,
+    ACT_TOGGLE_WASD_MODE,
+    ACT_MOVE_UP,
+    ACT_MOVE_DOWN,
+    ACT_MOVE_FORWARDS,
+    ACT_MOVE_BACKWARDS,
+    ACT_MOVE_LEFT,
+    ACT_MOVE_RIGHT,
 )
 from amulet_map_editor.programs.edit.api.operations import OperationSuccessful
 from amulet_map_editor.programs.edit.api.ui.tool import DefaultBaseToolUI
@@ -44,7 +53,9 @@ from amulet_map_editor.programs.edit.api.behaviour.pointer_behaviour import (
     PointChangeEvent,
 )
 from amulet_map_editor.programs.edit.api.events import (
+    InputPressEvent,
     InputHeldEvent,
+    EVT_INPUT_PRESS,
     EVT_INPUT_HELD,
 )
 from amulet_map_editor.api.opengl.matrix import rotation_matrix_xy
@@ -245,6 +256,7 @@ class PasteTool(wx.BoxSizer, DefaultBaseToolUI):
         self._selection = StaticSelectionBehaviour(self.canvas)
         self._cursor = PointerBehaviour(self.canvas)
         self._is_enabled = False
+        self._mouse_grabbed = False
 
         self._paste_panel = SimpleScrollablePanel(canvas.GetParent())
         self._paste_panel.Hide()
@@ -304,15 +316,6 @@ class PasteTool(wx.BoxSizer, DefaultBaseToolUI):
             flag=BottomLeftRightExpand,
             border=5,
         )
-
-        move_hint = wx.StaticText(
-            self._paste_panel,
-            label=lang.get("program_3d_edit.paste_tool.move_with_arrows_label"),
-        )
-        move_hint.SetToolTip(
-            lang.get("program_3d_edit.paste_tool.move_with_arrows_tooltip")
-        )
-        self._paste_sizer.Add(move_hint, 0, BottomLeftRight, 5)
 
         add_line()
 
@@ -469,6 +472,21 @@ class PasteTool(wx.BoxSizer, DefaultBaseToolUI):
 
         add_line()
 
+        self._wasd_moves_cursor = wx.CheckBox(
+            self._paste_panel,
+            label=lang.get("program_3d_edit.paste_tool.wasd_moves_cursor_label"),
+        )
+        self._wasd_moves_cursor.SetToolTip(
+            lang.get("program_3d_edit.paste_tool.wasd_moves_cursor_tooltip")
+        )
+        self._paste_sizer.Add(
+            self._wasd_moves_cursor,
+            flag=BottomLeftRight,
+            border=5,
+        )
+
+        add_line()
+
         confirm_button = wx.Button(self._paste_panel, label="Confirm")
         self._paste_sizer.Add(confirm_button, 0, BottomLeftRightExpand, 5)
         confirm_button.Bind(wx.EVT_BUTTON, self._paste_confirm)
@@ -485,11 +503,16 @@ class PasteTool(wx.BoxSizer, DefaultBaseToolUI):
         self._selection.bind_events()
         self._cursor.bind_events()
         self.canvas.Bind(EVT_POINT_CHANGE, self._on_pointer_change)
+        self.canvas.Bind(EVT_INPUT_PRESS, self._on_input_press)
         self.canvas.Bind(EVT_INPUT_HELD, self._on_input_held)
         self.canvas.Bind(wx.EVT_SIZE, self._on_resize)
 
     def enable(self):
+        # Preserve current projection mode (2D/3D)
+        current_projection = self.canvas.camera.projection_mode
         super().enable()
+        self.canvas.camera.projection_mode = current_projection
+        
         self._selection.update_selection()
         self._paste_panel.Show()
         wx.CallAfter(self.canvas.SetFocus)
@@ -511,6 +534,7 @@ class PasteTool(wx.BoxSizer, DefaultBaseToolUI):
 
         self._paste_panel.Enable()
         self._is_enabled = True
+        self._mouse_grabbed = False
         
         # Force-refresh pointer so first paste does not use the default (0, 0, 0)
         self._cursor._manual_cursor_mode = False
@@ -539,6 +563,7 @@ class PasteTool(wx.BoxSizer, DefaultBaseToolUI):
         super().disable()
         self._paste_panel.Disable()
         self._is_enabled = False
+        self._mouse_grabbed = False
         self.canvas.renderer.fake_levels.clear()
         self._paste_panel.Hide()
         
@@ -648,7 +673,28 @@ class PasteTool(wx.BoxSizer, DefaultBaseToolUI):
         self._update_transform()
 
     def _on_pointer_change(self, evt: PointChangeEvent):
-        # Paste movement is arrow-key driven only.
+        if self._is_enabled and self._mouse_grabbed:
+            self.location = evt.point
+        evt.Skip()
+
+    def _on_input_press(self, evt: InputPressEvent):
+        if self._is_enabled and evt.action_id == ACT_BOX_CLICK:
+            if self._mouse_grabbed:
+                self._mouse_grabbed = False
+                self._cursor._manual_cursor_mode = True
+                self._cursor._manual_cursor_pos = list(self.location)
+                self._cursor._pointer_moved = True
+            else:
+                self._mouse_grabbed = True
+                self._cursor._manual_cursor_mode = False
+                self._cursor._pointer_moved = True
+                self._cursor._update_pointer()
+                self.location = tuple(self._cursor.pointer_base.tolist())
+        elif self._is_enabled and evt.action_id == ACT_FOCUS_PASTE_DIALOG:
+            self._paste_panel.SetFocus()
+            self._location.x.SetFocus()
+        elif self._is_enabled and evt.action_id == ACT_TOGGLE_WASD_MODE:
+            self._wasd_moves_cursor.SetValue(not self._wasd_moves_cursor.GetValue())
         evt.Skip()
 
     def _on_transform_change(self, evt):
@@ -669,6 +715,8 @@ class PasteTool(wx.BoxSizer, DefaultBaseToolUI):
             return
 
         x = y = z = 0
+        wasd_consumed = False
+        
         if ACT_CURSOR_UP in evt.action_ids:
             y += 1
         if ACT_CURSOR_DOWN in evt.action_ids:
@@ -682,7 +730,31 @@ class PasteTool(wx.BoxSizer, DefaultBaseToolUI):
         if ACT_CURSOR_RIGHT in evt.action_ids:
             x -= 1
 
+        # If checkbox is enabled, also respond to WASD camera keys
+        if self._wasd_moves_cursor.GetValue():
+            if ACT_MOVE_UP in evt.action_ids:
+                y += 1
+                wasd_consumed = True
+            if ACT_MOVE_DOWN in evt.action_ids:
+                y -= 1
+                wasd_consumed = True
+            if ACT_MOVE_FORWARDS in evt.action_ids:
+                z += 1
+                wasd_consumed = True
+            if ACT_MOVE_BACKWARDS in evt.action_ids:
+                z -= 1
+                wasd_consumed = True
+            if ACT_MOVE_LEFT in evt.action_ids:
+                x += 1
+                wasd_consumed = True
+            if ACT_MOVE_RIGHT in evt.action_ids:
+                x -= 1
+                wasd_consumed = True
+
         if any((x, y, z)):
+            self._mouse_grabbed = False
+            self._cursor._manual_cursor_mode = True
+            self._cursor._manual_cursor_pos = list(self.location)
             ox, oy, oz = self._rotate_offset((x, y, z))
             lx, ly, lz = self.location
             self.location = lx + ox, ly + oy, lz + oz
@@ -693,7 +765,9 @@ class PasteTool(wx.BoxSizer, DefaultBaseToolUI):
             self._cursor._manual_cursor_pos[2] += oz
             self._cursor._pointer_moved = True
 
-        evt.Skip()
+        # Only skip if we didn't consume WASD keys - this prevents camera movement
+        if not wasd_consumed:
+            evt.Skip()
 
     def _rotate_offset(self, offset: Tuple[int, int, int]) -> Tuple[int, int, int]:
         x, y, z = offset

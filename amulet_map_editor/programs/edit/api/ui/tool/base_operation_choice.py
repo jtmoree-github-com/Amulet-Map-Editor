@@ -168,6 +168,32 @@ class BaseOperationChoiceToolUI(wx.BoxSizer, BaseToolUI):
         self._settings_panel.Hide()
         self._operation_panel.Hide()
 
+    def set_state(self, state):
+        if not isinstance(state, dict):
+            return
+
+        target_index = None
+        operation_id = state.get("operation_id")
+        if isinstance(operation_id, str) and operation_id in self._operation_choice.values:
+            target_index = self._operation_choice.values.index(operation_id)
+        else:
+            operation_name = state.get("operation_name")
+            if (
+                isinstance(operation_name, str)
+                and operation_name in self._operation_choice.keys
+            ):
+                target_index = self._operation_choice.keys.index(operation_name)
+
+        if (
+            isinstance(target_index, int)
+            and 0 <= target_index < len(self._operation_choice.values)
+            and self._operation_choice.GetSelection() != target_index
+        ):
+            self._operation_choice.SetSelection(target_index)
+            self._setup_operation()
+            self.canvas.reset_bound_events()
+            self._resize()
+
     def _on_reload_operations(self, evt):
         """Run when the button is pressed to reload the operations."""
         self.reload_operations()

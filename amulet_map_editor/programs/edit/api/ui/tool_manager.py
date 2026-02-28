@@ -1,5 +1,5 @@
 import wx
-from typing import TYPE_CHECKING, Type, Dict, Optional
+from typing import TYPE_CHECKING, Type, Dict, Optional, Tuple
 
 from amulet_map_editor.programs.edit.api import EditCanvasContainer
 from amulet_map_editor.programs.edit.api.ui.tool.base_tool_ui import (
@@ -10,6 +10,7 @@ from amulet_map_editor.programs.edit.api.events import (
     ToolChangeEvent,
     EVT_TOOL_CHANGE,
 )
+from amulet_map_editor.api.wx.ui.simple import SimpleChoiceAny
 
 from amulet_map_editor.programs.edit.plugins.tools import (
     ImportTool,
@@ -25,12 +26,27 @@ if TYPE_CHECKING:
 
 
 class ToolManagerSizer(wx.BoxSizer, EditCanvasContainer):
+    # Maps (tool_name, state_str) to (display_label, fkey)
+    _mode_map: Dict[Tuple[str, Optional[str]], Tuple[str, str]] = {
+        ("Select", None): ("F1 - Select", "Select:None"),
+        ("Paste", None): ("F2 - Paste", "Paste:None"),
+        ("Operation", "Fill"): ("F3 - Fill", "Operation:Fill"),
+        ("Operation", "Waterlog"): ("F4 - Waterlog", "Operation:Waterlog"),
+        ("Operation", "Clone"): ("F5 - Clone", "Operation:Clone"),
+        ("Operation", "Replace"): ("F6 - Replace", "Operation:Replace"),
+        ("Operation", "Set Biome"): ("F7 - Set Biome", "Operation:SetBiome"),
+        ("Chunk", None): ("F8 - Chunk", "Chunk:None"),
+        ("Export", None): ("F9 - Export", "Export:None"),
+        ("Import", None): ("F10 - Import", "Import:None"),
+    }
+
     def __init__(self, canvas: "EditCanvas"):
         wx.BoxSizer.__init__(self, wx.VERTICAL)
         EditCanvasContainer.__init__(self, canvas)
 
         self._tools: Dict[str, BaseToolUIType] = {}
         self._active_tool: Optional[BaseToolUIType] = None
+        self._active_tool_state: Optional[Dict] = None
 
         self._tool_option_sizer = wx.BoxSizer(wx.VERTICAL)
         self.Add(
@@ -42,6 +58,11 @@ class ToolManagerSizer(wx.BoxSizer, EditCanvasContainer):
         self._tool_sizer = wx.BoxSizer(wx.HORIZONTAL)
         self._tool_panel.SetSizer(self._tool_sizer)
 
+        # Create mode selection dropdown
+        self._mode_choice = SimpleChoiceAny(self._tool_panel, sort=False)
+        self._tool_sizer.Add(self._mode_choice, 1, wx.EXPAND | wx.ALL, 5)
+        self._mode_choice.Bind(wx.EVT_CHOICE, self._on_mode_choice)
+
         self.register_tool(SelectTool)
         self.register_tool(PasteTool)
         self.register_tool(OperationTool)
@@ -49,7 +70,15 @@ class ToolManagerSizer(wx.BoxSizer, EditCanvasContainer):
         self.register_tool(ExportTool)
         self.register_tool(ChunkTool)
 
+        self._populate_mode_choice()
         self._resize()
+
+    def _populate_mode_choice(self):
+        """Populate the choice dropdown with all available modes."""
+        items = {}
+        for (tool_name, state_name), (display_label, _) in self._mode_map.items():
+            items[(tool_name, state_name)] = display_label
+        self._mode_choice.SetItems(items)
 
     @property
     def tools(self):
@@ -68,21 +97,23 @@ class ToolManagerSizer(wx.BoxSizer, EditCanvasContainer):
         tool = tool_cls(self.canvas)
         tool_name = tool.name
 
-        button = wx.Button(self._tool_panel, label=tool_name)
-        button.Bind(
-            wx.EVT_BUTTON,
-            lambda evt: wx.PostEvent(self.canvas, ToolChangeEvent(tool=tool_name)),
-        )
-        self._tool_sizer.Add(button)
-        self._tool_sizer.Fit(self._tool_panel)
-        self._tool_panel.Layout()
-
         if isinstance(tool, wx.Window):
             tool.Hide()
         elif isinstance(tool, wx.Sizer):
             tool.ShowItems(show=False)
         self._tools[tool.name] = tool
         self._tool_option_sizer.Add(tool, 1, wx.EXPAND, 0)
+
+    def _on_mode_choice(self, evt):
+        """Handle mode selection from the dropdown."""
+        selection = self._mode_choice.GetCurrentObject()
+        if selection:
+            tool_name, state_name = selection
+            state = None
+            if state_name and state_name != "None":
+                state = {"operation_name": state_name}
+            wx.PostEvent(self.canvas, ToolChangeEvent(tool=tool_name, state=state))
+        evt.Skip()
 
     def _enable_tool_event(self, evt: ToolChangeEvent):
         self._enable_tool(evt.tool, evt.state)
@@ -119,14 +150,31 @@ class ToolManagerSizer(wx.BoxSizer, EditCanvasContainer):
                 elif isinstance(self._active_tool, wx.Sizer):
                     self._active_tool.ShowItems(show=False)
             self._active_tool = self._tools[tool]
+            self._active_tool_state = state
             if isinstance(self._active_tool, wx.Window):
                 self._active_tool.Show()
             elif isinstance(self._active_tool, wx.Sizer):
                 self._active_tool.ShowItems(show=True)
             self._active_tool.enable()
             self._active_tool.set_state(state)
+            
+            # Update the dropdown selection
+            self._update_mode_choice_selection(tool, state)
+            
             self.canvas.reset_bound_events()
             self.canvas.Layout()
+
+    def _update_mode_choice_selection(self, tool_name: str, state: Optional[Dict]):
+        """Update the dropdown to reflect the current tool/state."""
+        state_name = None
+        if state and "operation_name" in state:
+            state_name = state["operation_name"]
+        
+        # Find the matching mode tuple in values
+        target_tuple = (tool_name, state_name)
+        if target_tuple in self._mode_choice.values:
+            idx = self._mode_choice.values.index(target_tuple)
+            self._mode_choice.SetSelection(idx)
 
     def _on_resize(self, evt) -> None:
         self._resize()

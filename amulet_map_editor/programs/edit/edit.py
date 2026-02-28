@@ -227,7 +227,7 @@ class EditExtension(wx.Panel, BaseProgram):
             {
                 f"{lang.get('program_3d_edit.menu_bar.edit.cut')}\tCtrl+x": lambda evt: self._canvas.cut(),
                 f"{lang.get('program_3d_edit.menu_bar.edit.copy')}\tCtrl+c": lambda evt: self._canvas.copy(),
-                f"{lang.get('program_3d_edit.menu_bar.edit.paste')}\tCtrl+v": lambda evt: self._canvas.paste_from_cache(),
+                f"{lang.get('program_3d_edit.menu_bar.edit.paste')}": lambda evt: self._canvas.paste_from_cache(),
                 f"{lang.get('program_3d_edit.menu_bar.edit.delete')}\tDelete": lambda evt: self._canvas.delete(),
             }
         )
@@ -244,13 +244,13 @@ class EditExtension(wx.Panel, BaseProgram):
         menu.setdefault(lang.get("menu_bar.options.menu_name"), {}).setdefault(
             "options", {}
         ).setdefault(
-            lang.get("program_3d_edit.menu_bar.options.controls"),
+            f"{lang.get('program_3d_edit.menu_bar.options.controls')}\tAlt+L",
             lambda evt: self._edit_controls(),
         )
         menu.setdefault(lang.get("menu_bar.options.menu_name"), {}).setdefault(
             "options", {}
         ).setdefault(
-            lang.get("program_3d_edit.menu_bar.options.options"),
+            f"{lang.get('program_3d_edit.menu_bar.options.options')}\tAlt+N",
             lambda evt: self._edit_options(),
         )
         menu.setdefault(lang.get("menu_bar.help.menu_name"), {}).setdefault(

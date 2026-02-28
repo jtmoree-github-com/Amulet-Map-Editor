@@ -34,9 +34,19 @@ from amulet_map_editor.programs.edit.api.key_config import (
     ACT_CURSOR_BACKWARDS,
     ACT_CURSOR_LEFT,
     ACT_CURSOR_RIGHT,
+    ACT_TOGGLE_MOVE_TARGET,
+    ACT_TOGGLE_WASD_MODE,
+    ACT_MOVE_UP,
+    ACT_MOVE_DOWN,
+    ACT_MOVE_FORWARDS,
+    ACT_MOVE_BACKWARDS,
+    ACT_MOVE_LEFT,
+    ACT_MOVE_RIGHT,
 )
 from amulet_map_editor.programs.edit.api.events import (
+    InputPressEvent,
     InputHeldEvent,
+    EVT_INPUT_PRESS,
     EVT_INPUT_HELD,
 )
 from amulet_map_editor.api.opengl.matrix import rotation_matrix_xy
@@ -165,12 +175,6 @@ class SelectTool(wx.BoxSizer, DefaultBaseToolUI):
         move_radio_sizer = wx.BoxSizer(wx.VERTICAL)
         button_sizer.Add(move_radio_sizer, 0, wx.ALL | wx.EXPAND, 5)
         
-        move_label = wx.StaticText(
-            self._button_panel,
-            label=lang.get("program_3d_edit.select_tool.move_mode_label")
-        )
-        move_radio_sizer.Add(move_label, 0, wx.ALL, 2)
-        
         self._move_point1_radio = wx.RadioButton(
             self._button_panel,
             label=lang.get("program_3d_edit.select_tool.button_point1"),
@@ -214,6 +218,17 @@ class SelectTool(wx.BoxSizer, DefaultBaseToolUI):
         self._move_selection_radio.Bind(wx.EVT_ENTER_WINDOW, self._on_tool_ui_hover)
         move_radio_sizer.Add(self._move_selection_radio, 0, wx.ALL, 2)
 
+        self._wasd_moves_cursor = wx.CheckBox(
+            self._button_panel,
+            label=lang.get("program_3d_edit.select_tool.wasd_moves_cursor_label"),
+        )
+        self._wasd_moves_cursor.SetToolTip(
+            lang.get("program_3d_edit.select_tool.wasd_moves_cursor_tooltip")
+        )
+        self._wasd_moves_cursor.SetBackgroundColour((255, 255, 255))
+        self._wasd_moves_cursor.Bind(wx.EVT_ENTER_WINDOW, self._on_tool_ui_hover)
+        button_sizer.Add(self._wasd_moves_cursor, 0, wx.ALL | wx.EXPAND, 5)
+
         self._button_panel.Bind(wx.EVT_ENTER_WINDOW, self._on_tool_ui_hover)
 
         self._resize()
@@ -228,13 +243,18 @@ class SelectTool(wx.BoxSizer, DefaultBaseToolUI):
         self.canvas.Bind(EVT_RENDER_BOX_DISABLE_INPUTS, self._disable_inputs)
         self.canvas.Bind(EVT_RENDER_BOX_ENABLE_INPUTS, self._enable_inputs)
         self.canvas.Bind(EVT_SELECTION_CHANGE, self._on_selection_change)
+        self.canvas.Bind(EVT_INPUT_PRESS, self._on_input_press)
         self.canvas.Bind(EVT_INPUT_HELD, self._on_input_held)
         self.canvas.Bind(wx.EVT_SIZE, self._on_resize)
         self._selection.bind_events()
         self._inspect_block.bind_events()
 
     def enable(self):
+        # Preserve current projection mode (2D/3D)
+        current_projection = self.canvas.camera.projection_mode
         super().enable()
+        self.canvas.camera.projection_mode = current_projection
+        
         self._selection.enable()
         self._pull_selection()
         self._button_panel.Show()
@@ -338,9 +358,31 @@ class SelectTool(wx.BoxSizer, DefaultBaseToolUI):
         wx.CallAfter(self.canvas.SetFocus)
         evt.Skip()
 
+    def _on_input_press(self, evt: InputPressEvent):
+        if evt.action_id == ACT_TOGGLE_MOVE_TARGET:
+            self._toggle_move_target()
+        elif evt.action_id == ACT_TOGGLE_WASD_MODE:
+            self._wasd_moves_cursor.SetValue(not self._wasd_moves_cursor.GetValue())
+        evt.Skip()
+
+    def _toggle_move_target(self):
+        radios = [
+            self._move_point1_radio,
+            self._move_point2_radio,
+            self._move_selection_radio,
+        ]
+        current_index = 0
+        for index, radio in enumerate(radios):
+            if radio.GetValue():
+                current_index = index
+                break
+        next_index = (current_index + 1) % len(radios)
+        radios[next_index].SetValue(True)
+
     def _on_input_held(self, evt: InputHeldEvent):
         """Handle cursor movement with arrow keys and page up/down."""
         x = y = z = 0
+        wasd_consumed = False
 
         if ACT_CURSOR_UP in evt.action_ids:
             y += 1
@@ -355,6 +397,27 @@ class SelectTool(wx.BoxSizer, DefaultBaseToolUI):
         if ACT_CURSOR_RIGHT in evt.action_ids:
             x -= 1
 
+        # If checkbox is enabled, also respond to WASD camera keys
+        if self._wasd_moves_cursor.GetValue():
+            if ACT_MOVE_UP in evt.action_ids:
+                y += 1
+                wasd_consumed = True
+            if ACT_MOVE_DOWN in evt.action_ids:
+                y -= 1
+                wasd_consumed = True
+            if ACT_MOVE_FORWARDS in evt.action_ids:
+                z += 1
+                wasd_consumed = True
+            if ACT_MOVE_BACKWARDS in evt.action_ids:
+                z -= 1
+                wasd_consumed = True
+            if ACT_MOVE_LEFT in evt.action_ids:
+                x += 1
+                wasd_consumed = True
+            if ACT_MOVE_RIGHT in evt.action_ids:
+                x -= 1
+                wasd_consumed = True
+
         if any((x, y, z)):
             offset = self._rotate_offset((x, y, z))
             if self._move_point1_radio.GetValue():
@@ -364,7 +427,9 @@ class SelectTool(wx.BoxSizer, DefaultBaseToolUI):
             elif self._move_selection_radio.GetValue():
                 self._move_selection(offset)
 
-        evt.Skip()
+        # Only skip if we didn't consume WASD keys - this prevents camera movement
+        if not wasd_consumed:
+            evt.Skip()
 
     def _rotate_offset(self, offset: Tuple[int, int, int]) -> Tuple[int, int, int]:
         """Rotate movement offset based on camera rotation."""

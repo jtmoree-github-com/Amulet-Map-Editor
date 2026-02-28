@@ -12,6 +12,18 @@ from ..key_config import (
     DefaultKeybindGroupId,
     PresetKeybinds,
     KeybindGroup,
+    ACT_PASTE,
+    ACT_SWITCH_TO_SELECT_MODE,
+    ACT_SWITCH_TO_PASTE_MODE,
+    ACT_SWITCH_TO_FILL_MODE,
+    ACT_SWITCH_TO_WATERLOG_MODE,
+    ACT_SWITCH_TO_CLONE_MODE,
+    ACT_SWITCH_TO_REPLACE_MODE,
+    ACT_SWITCH_TO_BIOME_MODE,
+    ACT_SWITCH_TO_IMPORT_MODE,
+    ACT_SWITCH_TO_EXPORT_MODE,
+    ACT_SWITCH_TO_CHUNK_MODE,
+    ACT_TOGGLE_FULLSCREEN,
 )
 
 import time
@@ -26,6 +38,7 @@ from amulet_map_editor import close_level
 from amulet_map_editor.api.wx.ui.traceback_dialog import TracebackDialog
 from amulet_map_editor.programs.edit.api.ui.goto import show_goto
 from amulet_map_editor.programs.edit.api.ui.tool_manager import ToolManagerSizer
+from amulet_map_editor.programs.edit.plugins.tools import PasteTool
 from amulet_map_editor.programs.edit.api.operations.errors import (
     OperationError,
     OperationSilentAbort,
@@ -39,6 +52,8 @@ from amulet_map_editor.programs.edit.plugins.operations.stock_plugins.internal_o
 )
 
 from amulet_map_editor.programs.edit.api.events import (
+    InputPressEvent,
+    EVT_INPUT_PRESS,
     UndoEvent,
     RedoEvent,
     CreateUndoEvent,
@@ -175,7 +190,43 @@ class EditCanvas(BaseEditCanvas):
         # binding the tool events first will run them last so they can't accidentally block UI events.
         super().bind_events()
         self._file_panel.bind_events()
+        self.Bind(EVT_INPUT_PRESS, self._on_input_press)
         self.Bind(EVT_EDIT_CLOSE, self._on_close)
+
+    def _on_input_press(self, evt: InputPressEvent):
+        if evt.action_id == ACT_PASTE:
+            # If already in paste mode, paste from cache. Otherwise, switch to paste mode.
+            if isinstance(self._tool_sizer._active_tool, PasteTool):
+                self.paste_from_cache()
+            else:
+                wx.PostEvent(self, ToolChangeEvent(tool="Paste"))
+        elif evt.action_id == ACT_SWITCH_TO_SELECT_MODE:
+            wx.PostEvent(self, ToolChangeEvent(tool="Select"))
+        elif evt.action_id == ACT_SWITCH_TO_PASTE_MODE:
+            wx.PostEvent(self, ToolChangeEvent(tool="Paste"))
+        elif evt.action_id == ACT_SWITCH_TO_FILL_MODE:
+            wx.PostEvent(self, ToolChangeEvent(tool="Operation", state={"operation_name": "Fill"}))
+        elif evt.action_id == ACT_SWITCH_TO_WATERLOG_MODE:
+            wx.PostEvent(self, ToolChangeEvent(tool="Operation", state={"operation_name": "Waterlog"}))
+        elif evt.action_id == ACT_SWITCH_TO_CLONE_MODE:
+            wx.PostEvent(self, ToolChangeEvent(tool="Operation", state={"operation_name": "Clone"}))
+        elif evt.action_id == ACT_SWITCH_TO_REPLACE_MODE:
+            wx.PostEvent(self, ToolChangeEvent(tool="Operation", state={"operation_name": "Replace"}))
+        elif evt.action_id == ACT_SWITCH_TO_BIOME_MODE:
+            wx.PostEvent(self, ToolChangeEvent(tool="Operation", state={"operation_name": "Set Biome"}))
+        elif evt.action_id == ACT_SWITCH_TO_IMPORT_MODE:
+            wx.PostEvent(self, ToolChangeEvent(tool="Import"))
+        elif evt.action_id == ACT_SWITCH_TO_EXPORT_MODE:
+            wx.PostEvent(self, ToolChangeEvent(tool="Export"))
+        elif evt.action_id == ACT_SWITCH_TO_CHUNK_MODE:
+            wx.PostEvent(self, ToolChangeEvent(tool="Chunk"))
+        elif evt.action_id == ACT_TOGGLE_FULLSCREEN:
+            parent = self.GetTopLevelParent()
+            if parent.IsFullScreen():
+                parent.ShowFullScreen(False)
+            else:
+                parent.ShowFullScreen(True)
+        evt.Skip()
 
     def enable(self):
         super().enable()
