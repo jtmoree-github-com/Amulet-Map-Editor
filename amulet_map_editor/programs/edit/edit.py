@@ -9,6 +9,7 @@ import wx
 from amulet.api.data_types import OperationYieldType
 
 EDIT_CONFIG_ID = "amulet_edit"
+DEFAULT_RECENT_WORLDS_LIMIT = 5
 
 from amulet_map_editor import lang
 from amulet_map_editor.api.framework.programs import BaseProgram
@@ -206,8 +207,14 @@ class EditExtension(wx.Panel, BaseProgram):
         menu.setdefault(lang.get("menu_bar.file.menu_name"), {}).setdefault(
             "system", {}
         ).setdefault(
-            f"{lang.get('program_3d_edit.menu_bar.file.save')}\tCtrl+s",
+            f"&{lang.get('program_3d_edit.menu_bar.file.save')}\tCtrl+s",
             lambda evt: self._canvas.save(),
+        )
+        menu.setdefault(lang.get("menu_bar.file.menu_name"), {}).setdefault(
+            "system", {}
+        ).setdefault(
+            f"&{lang.get('program_3d_edit.menu_bar.file.preferences')}",
+            lambda evt: self._edit_preferences(),
         )
         # menu.setdefault(lang.get('menu_bar.file.menu_name'), {}).setdefault('system', {}).setdefault('Save As', lambda evt: self.GetGrandParent().close_world(self.world.world_path))
 
@@ -343,7 +350,6 @@ class EditExtension(wx.Panel, BaseProgram):
 
             response = dialog.ShowModal()
             if response == wx.ID_OK:
-                edit_config: dict = config.get(EDIT_CONFIG_ID, {})
                 edit_config.setdefault("options", {})
                 edit_config["options"]["fov"] = fov_ui.GetValue()
                 edit_config["options"][
@@ -357,6 +363,43 @@ class EditExtension(wx.Panel, BaseProgram):
                 self._canvas.camera.perspective_fov = fov
                 self._canvas.renderer.render_distance = render_distance
                 self._canvas.camera.rotate_speed = camera_sensitivity
+
+    def _edit_preferences(self):
+        edit_config: dict = config.get(EDIT_CONFIG_ID, {})
+        recent_worlds_limit = (
+            edit_config.get("options", {}).get(
+                "recent_worlds_limit", DEFAULT_RECENT_WORLDS_LIMIT
+            )
+        )
+        if not isinstance(recent_worlds_limit, int) or recent_worlds_limit < 1:
+            recent_worlds_limit = DEFAULT_RECENT_WORLDS_LIMIT
+
+        dialog = SimpleDialog(self, "Preferences")
+        sizer = wx.FlexGridSizer(1, 2, 0, 0)
+        dialog.sizer.Add(sizer, flag=wx.ALL, border=5)
+
+        recent_worlds_limit_ui = wx.SpinCtrl(
+            dialog, min=1, max=100, initial=recent_worlds_limit
+        )
+        sizer.Add(
+            wx.StaticText(dialog, label="Recent Worlds Limit"),
+            flag=wx.LEFT | wx.TOP | wx.ALIGN_CENTER_VERTICAL | wx.EXPAND,
+            border=5,
+        )
+        sizer.Add(
+            recent_worlds_limit_ui,
+            flag=wx.LEFT | wx.TOP | wx.ALIGN_CENTER_VERTICAL | wx.EXPAND,
+            border=5,
+        )
+
+        dialog.Fit()
+
+        if dialog.ShowModal() == wx.ID_OK:
+            edit_config.setdefault("options", {})
+            edit_config["options"]["recent_worlds_limit"] = (
+                recent_worlds_limit_ui.GetValue()
+            )
+            config.put(EDIT_CONFIG_ID, edit_config)
 
     @staticmethod
     def _help_controls():

@@ -85,6 +85,12 @@ class AmuletApp(wx.App):
         """
         self._amulet_ui.open_level(path)
 
+    def open_world_select_tab(self):
+        """
+        Open the world selector as a tab.
+        """
+        self._amulet_ui.open_world_select_tab()
+
     def close_level(self, path: str):
         """
         Close a level tab.

@@ -7,13 +7,15 @@ import logging
 import sys
 
 from amulet.api.errors import LoaderNoneMatched
-from amulet_map_editor.api.wx.ui.select_world import open_level_from_dialog
+from amulet_map_editor.api.wx.ui.select_world import open_level_from_dialog, WorldSelectPageUI
 from amulet_map_editor.api.wx.ui.traceback_dialog import TracebackDialog
 from amulet_map_editor import __version__, lang
 from amulet_map_editor.api.framework.pages import WorldPageUI
 from .pages import AmuletMainMenu, BasePageUI
 
 from amulet_map_editor.api import image
+from amulet_map_editor.api import config
+from amulet_map_editor.api.wx.ui.simple import SimpleDialog
 from amulet_map_editor.api.wx.util.ui_preferences import preserve_ui_preferences
 
 log = logging.getLogger(__name__)
@@ -26,6 +28,8 @@ NOTEBOOK_MENU_STYLE = (
 NOTEBOOK_STYLE = NOTEBOOK_MENU_STYLE | flatnotebook.FNB_X_ON_TAB
 
 CLOSEABLE_PAGE_TYPE = Union[WorldPageUI]
+EDIT_CONFIG_ID = "amulet_edit"
+DEFAULT_RECENT_WORLDS_LIMIT = 5
 
 wx.Image.SetDefaultLoadFlags(0)
 
@@ -71,6 +75,10 @@ class AmuletUI(wx.Frame):
         """Open a level. You should use the method in the app."""
         self._level_notebook.open_level(path)
 
+    def open_world_select_tab(self):
+        """Open the world selector as a tab. You should use the method in the app."""
+        self._level_notebook.open_world_select_tab()
+
     def close_level(self, path: str):
         """Close a given level. You should use the method in the app."""
         self._level_notebook.close_level(path)
@@ -85,13 +93,19 @@ class AmuletUI(wx.Frame):
         menu_dict.setdefault(lang.get("menu_bar.file.menu_name"), {}).setdefault(
             "system", {}
         ).setdefault(
-            lang.get("menu_bar.file.open_world"),
-            lambda evt: open_level_from_dialog(self),
+            f"&{lang.get('menu_bar.file.open_world')}\tCtrl+O",
+            lambda evt: self.open_world_select_tab(),
+        )
+        menu_dict.setdefault(lang.get("menu_bar.file.menu_name"), {}).setdefault(
+            "system", {}
+        ).setdefault(
+            f"&{lang.get('program_3d_edit.menu_bar.file.preferences')}",
+            lambda evt: self._edit_preferences(),
         )
         # menu_dict.setdefault(lang.get('menu_bar.file.menu_name'), {}).setdefault('system', {}).setdefault('Create World', lambda: self.world.save())
         menu_dict.setdefault(lang.get("menu_bar.file.menu_name"), {}).setdefault(
             "exit", {}
-        ).setdefault(lang.get("menu_bar.file.quit"), lambda evt: self.Close())
+        ).setdefault(f"&{lang.get('menu_bar.file.quit')}", lambda evt: self.Close())
         menu_dict = self._level_notebook.extend_menu(menu_dict)
         menu_bar = wx.MenuBar()
         for menu_name, menu_data in menu_dict.items():
@@ -129,12 +143,52 @@ class AmuletUI(wx.Frame):
             menu_bar.Append(menu, menu_name)
         self.SetMenuBar(menu_bar)
 
+    def _edit_preferences(self):
+        edit_config: dict = config.get(EDIT_CONFIG_ID, {})
+        recent_worlds_limit = (
+            edit_config.get("options", {}).get(
+                "recent_worlds_limit", DEFAULT_RECENT_WORLDS_LIMIT
+            )
+        )
+        if not isinstance(recent_worlds_limit, int) or recent_worlds_limit < 1:
+            recent_worlds_limit = DEFAULT_RECENT_WORLDS_LIMIT
+
+        dialog = SimpleDialog(self, "Preferences")
+        sizer = wx.FlexGridSizer(1, 2, 0, 0)
+        dialog.sizer.Add(sizer, flag=wx.ALL, border=5)
+
+        recent_worlds_limit_ui = wx.SpinCtrl(
+            dialog, min=1, max=100, initial=recent_worlds_limit
+        )
+        sizer.Add(
+            wx.StaticText(dialog, label="Recent Worlds Limit"),
+            flag=wx.LEFT | wx.TOP | wx.ALIGN_CENTER_VERTICAL | wx.EXPAND,
+            border=5,
+        )
+        sizer.Add(
+            recent_worlds_limit_ui,
+            flag=wx.LEFT | wx.TOP | wx.ALIGN_CENTER_VERTICAL | wx.EXPAND,
+            border=5,
+        )
+
+        dialog.Fit()
+
+        if dialog.ShowModal() == wx.ID_OK:
+            edit_config.setdefault("options", {})
+            edit_config["options"]["recent_worlds_limit"] = (
+                recent_worlds_limit_ui.GetValue()
+            )
+            config.put(EDIT_CONFIG_ID, edit_config)
+
 
 class AmuletLevelNotebook(flatnotebook.FlatNotebook):
     """A notebook to hold all world tabs."""
 
     # The main menu tab
     _main_menu: AmuletMainMenu
+
+    # The world selector tab (if open)
+    _world_selector: WorldSelectPageUI | None
 
     # Storage of open world tabs for easy lookup
     _open_worlds: Dict[str, CLOSEABLE_PAGE_TYPE]
@@ -147,6 +201,7 @@ class AmuletLevelNotebook(flatnotebook.FlatNotebook):
         self.Bind(wx.EVT_NOTEBOOK_PAGE_CHANGED, self._page_changed, self)
 
         self._main_menu = AmuletMainMenu(self)
+        self._world_selector = None
         self._open_worlds = {}
 
     def init(self):
@@ -176,6 +231,22 @@ class AmuletLevelNotebook(flatnotebook.FlatNotebook):
                 self._open_worlds[path] = world
                 self._add_world_tab(world, world.world_name)
 
+    def open_world_select_tab(self):
+        """Open the world selector as a tab"""
+        if self._world_selector is not None:
+            # If the tab already exists, just switch to it
+            page_index = self.GetPageIndex(self._world_selector)
+            if page_index != wx.NOT_FOUND:
+                self.SetSelection(page_index)
+                return
+            else:
+                # The tab was closed, so create a new one
+                self._world_selector = None
+
+        # Create a new world selector tab
+        self._world_selector = WorldSelectPageUI(self)
+        self._add_world_tab(self._world_selector, lang.get("select_world.title"))
+
     def _add_world_tab(self, page: BasePageUI, obj_name: str):
         """Add a tab and enable it."""
         self.AddPage(page, obj_name, True)
@@ -192,7 +263,14 @@ class AmuletLevelNotebook(flatnotebook.FlatNotebook):
     def _on_page_closing(self, evt: flatnotebook.EVT_FLATNOTEBOOK_PAGE_CLOSING):
         """Handle the page closing."""
         page: CLOSEABLE_PAGE_TYPE = self.GetPage(evt.GetSelection())
-        if page is not self._main_menu:
+        if page is self._main_menu:
+            # Don't allow closing the main menu
+            evt.Veto()
+        elif page is self._world_selector:
+            # Allow closing the world selector and clear the reference
+            self._world_selector = None
+        elif hasattr(page, 'path'):
+            # It's a world page
             if page.can_disable() and page.can_close():
                 path = page.path
                 page.disable()
