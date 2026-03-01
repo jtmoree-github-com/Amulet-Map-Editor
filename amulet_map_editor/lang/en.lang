@@ -215,6 +215,7 @@ action.act_focus_paste_dialog=Keyboard Focus Paste Dialog
 action.act_toggle_fullscreen=Toggle Fullscreen
 action.act_box_click=Select New Highlight Box
 action.act_box_click_add=Add Highlight Box
+action.act_move_camera_to_cursor=Move Camera to Selection Cursor
 action.act_change_mouse_mode=Rotate Camera
 action.act_incr_speed=Increase Speed
 action.act_decr_speed=Decrease Speed

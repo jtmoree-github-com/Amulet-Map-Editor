@@ -239,6 +239,9 @@ class BaseEditCanvas(EventCanvas):
         self._camera.location_rotation = location, rotation
         self._renderer.move_camera(location, rotation)
 
+        if not self.selection.selection_group:
+            self.selection.selection_corners = [((0, 0, 0), (1, 1, 1))]
+
     def bind_events(self):
         """Set up all events required to run.
         Note this will also bind subclass events."""

@@ -17,6 +17,7 @@ from amulet_map_editor.api.wx.util.key_config import (
     Down,
     PageUp,
     PageDown,
+    Space,
     F1,
     F2,
     F3,
@@ -97,6 +98,7 @@ ACT_DESELECT_BOX = "ACT_DESELECT_BOX"
 ACT_INSPECT_BLOCK = "ACT_INSPECT_BLOCK"
 ACT_CHANGE_PROJECTION = "ACT_CHANGE_PROJECTION"
 ACT_TOGGLE_FULLSCREEN = "ACT_TOGGLE_FULLSCREEN"
+ACT_MOVE_CAMERA_TO_CURSOR = "ACT_MOVE_CAMERA_TO_CURSOR"
 
 KeybindKeys: List[KeyActionType] = [
     ACT_MOVE_UP,
@@ -138,6 +140,7 @@ KeybindKeys: List[KeyActionType] = [
     ACT_INSPECT_BLOCK,
     ACT_CHANGE_PROJECTION,
     ACT_TOGGLE_FULLSCREEN,
+    ACT_MOVE_CAMERA_TO_CURSOR,
 ]
 
 PresetKeybinds: KeybindContainer = {
@@ -181,6 +184,7 @@ PresetKeybinds: KeybindContainer = {
         ACT_DESELECT_BOX: ((Control,), D),
         ACT_INSPECT_BLOCK: ((Alt,), MouseRight),
         ACT_CHANGE_PROJECTION: ((Control,), T),
+        ACT_MOVE_CAMERA_TO_CURSOR: ((Control,), Space),
     },
     "right_laptop": {
         ACT_MOVE_UP: ((), E),
@@ -222,6 +226,7 @@ PresetKeybinds: KeybindContainer = {
         ACT_DESELECT_BOX: ((Control,), D),
         ACT_INSPECT_BLOCK: ((Alt,), MouseRight),
         ACT_CHANGE_PROJECTION: ((Control,), T),
+        ACT_MOVE_CAMERA_TO_CURSOR: ((Control,), Space),
     },
     "left": {
         ACT_MOVE_UP: ((), E),
@@ -263,6 +268,7 @@ PresetKeybinds: KeybindContainer = {
         ACT_DESELECT_BOX: ((Control,), D),
         ACT_INSPECT_BLOCK: ((Alt,), MouseRight),
         ACT_CHANGE_PROJECTION: ((Control,), T),
+        ACT_MOVE_CAMERA_TO_CURSOR: ((Control,), Space),
     },
     "left_laptop": {
         ACT_MOVE_UP: ((), E),
@@ -304,6 +310,7 @@ PresetKeybinds: KeybindContainer = {
         ACT_DESELECT_BOX: ((Control,), D),
         ACT_INSPECT_BLOCK: ((Alt,), MouseRight),
         ACT_CHANGE_PROJECTION: ((Control,), T),
+        ACT_MOVE_CAMERA_TO_CURSOR: ((Control,), Space),
     },
 }
 
@@ -327,6 +334,7 @@ ActionGroups = OrderedDict([
     ("navigation", [
         ACT_CHANGE_PROJECTION,
         ACT_TOGGLE_WASD_MODE,
+        ACT_MOVE_CAMERA_TO_CURSOR,
     ]),
     ("camera", [
         ACT_CHANGE_MOUSE_MODE,

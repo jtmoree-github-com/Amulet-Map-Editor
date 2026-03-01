@@ -1,6 +1,7 @@
 import logging
 import warnings
 import wx
+import math
 from typing import Callable, TYPE_CHECKING, Any, Generator, Optional
 from types import GeneratorType
 from threading import RLock, Thread
@@ -24,6 +25,7 @@ from ..key_config import (
     ACT_SWITCH_TO_EXPORT_MODE,
     ACT_SWITCH_TO_CHUNK_MODE,
     ACT_TOGGLE_FULLSCREEN,
+    ACT_MOVE_CAMERA_TO_CURSOR,
 )
 
 import time
@@ -242,7 +244,35 @@ class EditCanvas(BaseEditCanvas):
                 parent.ShowFullScreen(False)
             else:
                 parent.ShowFullScreen(True)
+        elif evt.action_id == ACT_MOVE_CAMERA_TO_CURSOR:
+            self._move_camera_to_selection_cursor()
         evt.Skip()
+
+    def _move_camera_to_selection_cursor(self):
+        selection_group = self.selection.selection_group
+
+        if selection_group and selection_group.selection_boxes:
+            selection_box = selection_group.selection_boxes[-1]
+            target_x = (selection_box.min[0] + selection_box.max[0]) / 2
+            target_y = (selection_box.min[1] + selection_box.max[1]) / 2
+            target_z = (selection_box.min[2] + selection_box.max[2]) / 2
+        else:
+            target_x = target_y = target_z = 0.0
+
+        yaw, pitch = self.camera.rotation
+        yaw_radians = math.radians(yaw)
+        pitch_radians = math.radians(pitch)
+
+        forward_x = -math.sin(yaw_radians) * math.cos(pitch_radians)
+        forward_y = -math.sin(pitch_radians)
+        forward_z = math.cos(yaw_radians) * math.cos(pitch_radians)
+
+        standoff_distance = 8.0
+        camera_x = target_x - forward_x * standoff_distance
+        camera_y = target_y - forward_y * standoff_distance
+        camera_z = target_z - forward_z * standoff_distance
+
+        self.camera.location = (camera_x, camera_y, camera_z)
 
     def enable(self):
         super().enable()
