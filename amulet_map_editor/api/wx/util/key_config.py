@@ -560,11 +560,11 @@ class KeyConfig(wx.BoxSizer):
             grid_sizer.Add(hotkey_label, 0, wx.ALIGN_CENTER_VERTICAL | wx.ALIGN_RIGHT)
 
         philosophy_text = (
-            "The philosophy of this version of amulet is to improve workflow via keyboard optimization.  "
-            "Shift and tab work like other programs where shift is only a modifer and Tab is heavily used in navigating dialogs.  "
+            "The philosophy of this version of amulet is to improve workflow via keyboard optimization. "
+            "Shift and tab work like other programs where shift is only a modifier and Tab is heavily used in navigating dialogs. "
             "Movement of camera and cursor can be done at the same time using mapped keys for both hands. "
-            "e.g. left hand for camera and and right hand for cursor.  "
-            "In additon, many hotkeys will make functionality easier to access and menus have been expanded to use traditonal style Alt Keys for access."
+            "e.g. left hand for camera and and right hand for cursor. "
+            "In addition, many hotkeys will make functionality easier to access and menus have been expanded to use traditional style Alt Keys for access."
         )
         philosophy_label = wx.StaticText(
             self._options, label=philosophy_text, style=wx.ALIGN_RIGHT
