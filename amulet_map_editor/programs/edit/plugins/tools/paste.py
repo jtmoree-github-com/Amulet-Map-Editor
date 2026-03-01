@@ -405,6 +405,7 @@ class PasteTool(wx.BoxSizer, DefaultBaseToolUI):
 
         self._paste_panel.Bind(wx.EVT_SPINCTRL, self._on_transform_change)
         self._paste_panel.Bind(wx.EVT_SPINCTRLDOUBLE, self._on_transform_change)
+        self._paste_panel.Bind(wx.EVT_CHAR_HOOK, self._on_panel_char_hook)
 
         mirror_sizer = wx.BoxSizer(wx.HORIZONTAL)
         self._paste_sizer.Add(
@@ -680,6 +681,18 @@ class PasteTool(wx.BoxSizer, DefaultBaseToolUI):
             self._location.x.SetFocus()
         elif self._is_enabled and evt.action_id == ACT_TOGGLE_WASD_MODE:
             self.canvas.wasd_moves_cursor = not self.canvas.wasd_moves_cursor
+        evt.Skip()
+
+    def _on_panel_char_hook(self, evt: wx.KeyEvent):
+        if (
+            evt.GetKeyCode() == wx.WXK_TAB
+            and evt.ShiftDown()
+            and not evt.ControlDown()
+            and not evt.AltDown()
+        ):
+            focus = wx.Window.FindFocus()
+            if focus is not None and focus.Navigate(wx.NavigationKeyEvent.IsForward):
+                return
         evt.Skip()
 
     def _on_transform_change(self, evt):

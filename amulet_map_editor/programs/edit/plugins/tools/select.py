@@ -219,6 +219,7 @@ class SelectTool(wx.BoxSizer, DefaultBaseToolUI):
         move_radio_sizer.Add(self._move_selection_radio, 0, wx.ALL, 2)
 
         self._button_panel.Bind(wx.EVT_ENTER_WINDOW, self._on_tool_ui_hover)
+        self._button_panel.Bind(wx.EVT_CHAR_HOOK, self._on_panel_char_hook)
 
         self._resize()
     @property
@@ -344,6 +345,18 @@ class SelectTool(wx.BoxSizer, DefaultBaseToolUI):
 
     def _on_tool_ui_hover(self, evt: wx.MouseEvent):
         wx.CallAfter(self.canvas.SetFocus)
+        evt.Skip()
+
+    def _on_panel_char_hook(self, evt: wx.KeyEvent):
+        if (
+            evt.GetKeyCode() == wx.WXK_TAB
+            and evt.ShiftDown()
+            and not evt.ControlDown()
+            and not evt.AltDown()
+        ):
+            focus = wx.Window.FindFocus()
+            if focus is not None and focus.Navigate(wx.NavigationKeyEvent.IsForward):
+                return
         evt.Skip()
 
     def _on_input_press(self, evt: InputPressEvent):
