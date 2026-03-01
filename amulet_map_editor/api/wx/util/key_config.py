@@ -525,7 +525,6 @@ class KeyConfig(wx.BoxSizer):
         font.PointSize += 2
         font = font.Bold()
         heading.SetFont(font)
-        main_sizer.Add(heading, 0, wx.ALL, 5)
 
         misc_hotkeys = [
             (lang.get("menu_bar.file.open_world"), "Ctrl+O"),
@@ -559,26 +558,29 @@ class KeyConfig(wx.BoxSizer):
             hotkey_label.SetFont(hotkey_font)
             grid_sizer.Add(hotkey_label, 0, wx.ALIGN_CENTER_VERTICAL | wx.ALIGN_RIGHT)
 
-        philosophy_text = (
-            "The philosophy of this version of amulet is to improve workflow via keyboard optimization. "
-            "Shift and tab work like other programs where shift is only a modifier and Tab is heavily used in navigating dialogs. "
-            "Movement of camera and cursor can be done at the same time using mapped keys for both hands. "
-            "e.g. left hand for camera and and right hand for cursor. "
-            "In addition, many hotkeys will make functionality easier to access and menus have been expanded to use traditional style Alt Keys for access."
-        )
+        philosophy_text = lang.get("key_config.philosophy")
         philosophy_label = wx.StaticText(
-            self._options, label=philosophy_text, style=wx.ALIGN_RIGHT
+            self._options, label=philosophy_text, style=wx.ALIGN_LEFT
         )
         philosophy_label.Wrap(420)
 
+        # Left half: Misc heading and grid (centered)
+        left_sizer = wx.BoxSizer(wx.VERTICAL)
+        left_sizer.Add(heading, 0, wx.LEFT, 5)
+        left_sizer.AddStretchSpacer()
+        left_sizer.Add(grid_sizer, 0, wx.ALIGN_CENTER_HORIZONTAL)
+        left_sizer.AddStretchSpacer()
+
+        # Right half: Philosophy text (centered)
+        right_sizer = wx.BoxSizer(wx.VERTICAL)
+        right_sizer.AddStretchSpacer()
+        right_sizer.Add(philosophy_label, 0, wx.ALIGN_CENTER_HORIZONTAL | wx.ALL, 20)
+        right_sizer.AddStretchSpacer()
+
+        # Combine left and right halves
         content_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        content_sizer.Add(grid_sizer, 0, wx.ALIGN_TOP)
-        content_sizer.Add(
-            philosophy_label,
-            1,
-            wx.LEFT | wx.ALIGN_TOP,
-            20,
-        )
+        content_sizer.Add(left_sizer, 1, wx.EXPAND)
+        content_sizer.Add(right_sizer, 1, wx.EXPAND)
 
         main_sizer.Add(content_sizer, 0, wx.ALL | wx.EXPAND, 5)
 

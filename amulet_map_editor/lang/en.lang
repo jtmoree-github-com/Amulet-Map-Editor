@@ -147,6 +147,7 @@ key_config.enter_group_name=Enter a new group name.
 key_config.active_not_editable=The active key group is not editable. Would you like to create a new group to edit?
 key_config.group_description.cursor=The cursor will always move with these keys. In addition, it may move with the camera move keys when the toggle is activated.
 key_config.group_description.camera=The move keys affect the camera by default but may be toggled to move the cursor instead
+key_config.philosophy=This version of Amulet supports two different paradigms for editing. The first keeps both hands on the keyboard for simultaneous and independent moving of camera and cursors. The second is the traditional one hand on the mouse with the other on the keyboard. In both, click and drag navigates the viewport and repositions selections, while Alt+T toggles movement modes for a quick switch between them. Tab and Shift+Tab navigate all dialogs and panels consistent with other programs, while Ctrl+T switches between 2D and 3D views. This version adds essential keyboard shortcuts like Ctrl+F (search), Ctrl+R (run), and dedicated cursor movement keys to make both paradigms intuitive and efficient.
 
 # About
 ## The default program when a world is opened
