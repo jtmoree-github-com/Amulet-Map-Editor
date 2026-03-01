@@ -1,6 +1,8 @@
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Optional, Tuple
 import logging
+import math
 import wx
+import numpy
 from OpenGL.GL import (
     glClear,
     GL_DEPTH_BUFFER_BIT,
@@ -16,6 +18,8 @@ from amulet_map_editor.programs.edit.api.behaviour import (
 from amulet_map_editor.programs.edit.api.events import (
     InputPressEvent,
     EVT_INPUT_PRESS,
+    InputHeldEvent,
+    EVT_INPUT_HELD,
 )
 from amulet_map_editor.api.wx.util.key_config import (
     serialise_key,
@@ -25,7 +29,22 @@ from amulet_map_editor.api.wx.util.key_config import (
 )
 from amulet_map_editor.programs.edit.api.key_config import (
     ACT_BOX_CLICK,
+    ACT_TOGGLE_WASD_MODE,
+    ACT_MOVE_UP,
+    ACT_MOVE_DOWN,
+    ACT_MOVE_FORWARDS,
+    ACT_MOVE_BACKWARDS,
+    ACT_MOVE_LEFT,
+    ACT_MOVE_RIGHT,
+    ACT_CURSOR_UP,
+    ACT_CURSOR_DOWN,
+    ACT_CURSOR_FORWARDS,
+    ACT_CURSOR_BACKWARDS,
+    ACT_CURSOR_LEFT,
+    ACT_CURSOR_RIGHT,
 )
+from amulet.api.selection import SelectionGroup, SelectionBox
+from amulet_map_editor.api.opengl.matrix import rotation_matrix_xy
 
 if TYPE_CHECKING:
     from amulet_map_editor.programs.edit.api.canvas import EditCanvas
@@ -63,12 +82,20 @@ class DefaultOperationUI(OperationUI):
         self._camera_behaviour.bind_events()
         self._pointer.bind_events()
         self.canvas.Bind(EVT_INPUT_PRESS, self._on_input_press)
+        self.canvas.Bind(EVT_INPUT_HELD, self._on_input_held)
         self.canvas.Bind(wx.EVT_KEY_DOWN, self._on_canvas_key_down)
         if isinstance(self, wx.Window):
             self.Bind(wx.EVT_CHAR_HOOK, self._on_char_hook)
 
     def _on_canvas_key_down(self, evt: wx.KeyEvent):
         key_code = evt.GetKeyCode()
+        if (
+            key_code == wx.WXK_TAB
+            and not evt.ControlDown()
+            and not evt.AltDown()
+            and self._navigate_focus(forward=not evt.ShiftDown())
+        ):
+            return
         if (
             evt.ControlDown()
             and not evt.AltDown()
@@ -88,21 +115,19 @@ class DefaultOperationUI(OperationUI):
     def _on_char_hook(self, evt: wx.KeyEvent):
         key_code = evt.GetKeyCode()
         if (
+            key_code == wx.WXK_TAB
+            and not evt.ControlDown()
+            and not evt.AltDown()
+            and self._navigate_focus(forward=not evt.ShiftDown())
+        ):
+            return
+        if (
             evt.ControlDown()
             and not evt.AltDown()
             and key_code in (ord("R"), ord("r"))
             and self._trigger_run_operation_button()
         ):
             return
-        if (
-            key_code == wx.WXK_TAB
-            and evt.ShiftDown()
-            and not evt.ControlDown()
-            and not evt.AltDown()
-        ):
-            focus = wx.Window.FindFocus()
-            if focus is not None and focus.Navigate(wx.NavigationKeyEvent.IsForward):
-                return
         if self._dispatch_function_key_from_focused_field(evt):
             return
         if (
@@ -123,6 +148,47 @@ class DefaultOperationUI(OperationUI):
         search_ctrl.SetFocus()
         search_ctrl.SelectAll()
         return True
+
+    def _navigate_focus(self, forward: bool) -> bool:
+        if not isinstance(self, wx.Window):
+            return False
+
+        controls = self._collect_focusable_children(self)
+        if not controls:
+            return False
+
+        focus = wx.Window.FindFocus()
+        if focus in controls:
+            index = controls.index(focus)
+            target_index = (index + (1 if forward else -1)) % len(controls)
+        else:
+            target_index = 0 if forward else -1
+
+        controls[target_index].SetFocus()
+        return True
+
+    def _collect_focusable_children(self, parent: wx.Window):
+        controls = []
+        for child in parent.GetChildren():
+            if isinstance(child, wx.Window):
+                if child.IsShownOnScreen() and child.IsEnabled() and child.AcceptsFocus():
+                    controls.append(child)
+                controls.extend(self._collect_focusable_children(child))
+        return controls
+
+    def _find_first_focusable_child(self, parent: wx.Window) -> Optional[wx.Window]:
+        for child in self._collect_focusable_children(parent):
+            return child
+        return None
+
+    @staticmethod
+    def _is_descendant(parent: wx.Window, child: wx.Window) -> bool:
+        current = child
+        while current is not None:
+            if current is parent:
+                return True
+            current = current.GetParent()
+        return False
 
     def _trigger_run_operation_button(self) -> bool:
         run_button = getattr(self, "_run_button", None)
@@ -197,7 +263,89 @@ class DefaultOperationUI(OperationUI):
     def _on_input_press(self, evt: InputPressEvent):
         if evt.action_id == ACT_BOX_CLICK:
             self._on_box_click()
+        elif evt.action_id == ACT_TOGGLE_WASD_MODE:
+            self.canvas.wasd_moves_cursor = not self.canvas.wasd_moves_cursor
         evt.Skip()
+
+    def _on_input_held(self, evt: InputHeldEvent):
+        """Handle cursor movement with arrow keys and movement keys."""
+        x = y = z = 0
+        wasd_consumed = False
+
+        if ACT_CURSOR_UP in evt.action_ids:
+            y += 1
+        if ACT_CURSOR_DOWN in evt.action_ids:
+            y -= 1
+        if ACT_CURSOR_FORWARDS in evt.action_ids:
+            z += 1
+        if ACT_CURSOR_BACKWARDS in evt.action_ids:
+            z -= 1
+        if ACT_CURSOR_LEFT in evt.action_ids:
+            x += 1
+        if ACT_CURSOR_RIGHT in evt.action_ids:
+            x -= 1
+
+        # If move cursor mode is enabled, also respond to WASD camera keys
+        if self.canvas.wasd_moves_cursor:
+            if ACT_MOVE_UP in evt.action_ids:
+                y += 1
+                wasd_consumed = True
+            if ACT_MOVE_DOWN in evt.action_ids:
+                y -= 1
+                wasd_consumed = True
+            if ACT_MOVE_FORWARDS in evt.action_ids:
+                z += 1
+                wasd_consumed = True
+            if ACT_MOVE_BACKWARDS in evt.action_ids:
+                z -= 1
+                wasd_consumed = True
+            if ACT_MOVE_LEFT in evt.action_ids:
+                x += 1
+                wasd_consumed = True
+            if ACT_MOVE_RIGHT in evt.action_ids:
+                x -= 1
+                wasd_consumed = True
+
+        if any((x, y, z)):
+            offset = self._rotate_offset((x, y, z))
+            self._move_selection(offset)
+
+        # Only skip if we didn't consume WASD keys - this prevents camera movement
+        if not wasd_consumed:
+            evt.Skip()
+
+    def _rotate_offset(self, offset: Tuple[int, int, int]) -> Tuple[int, int, int]:
+        """Rotate movement offset based on camera rotation."""
+        x, y, z = offset
+        ry = self.canvas.camera.rotation[0]
+        x, y, z, _ = (
+            numpy.round(
+                numpy.matmul(
+                    rotation_matrix_xy(0, -math.radians(round(ry / 90) * 90)),
+                    (x, y, z, 0),
+                )
+            )
+            .astype(int)
+            .tolist()
+        )
+        return x, y, z
+
+    def _move_selection(self, offset: Tuple[int, int, int]):
+        """Move the entire selection by the given offset."""
+        ox, oy, oz = offset
+        selection_group = self.canvas.selection.selection_group
+        if selection_group:
+            new_boxes = []
+            for box in selection_group.selection_boxes:
+                min_x, min_y, min_z = box.min
+                max_x, max_y, max_z = box.max
+                new_boxes.append(
+                    SelectionBox(
+                        (min_x + ox, min_y + oy, min_z + oz),
+                        (max_x + ox, max_y + oy, max_z + oz),
+                    )
+                )
+            self.canvas.selection.selection_group = SelectionGroup(new_boxes)
 
     def _on_box_click(self):
         pass

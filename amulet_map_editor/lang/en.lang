@@ -280,7 +280,7 @@ program_3d_edit.select_tool.button_point2_tooltip=Use arrow keys to move the blu
 program_3d_edit.select_tool.button_selection_box=Selection Box
 program_3d_edit.select_tool.button_selection_box_tooltip=Use arrow keys to move the entire active box.
 program_3d_edit.select_tool.wasd_moves_cursor_label=Move Cursor instead of Camera
-program_3d_edit.select_tool.wasd_moves_cursor_tooltip=When enabled, WASD keys will move the selection instead of the camera. Hotkey: Alt+C
+program_3d_edit.select_tool.wasd_moves_cursor_tooltip=When enabled, WASD keys will move the selection instead of the camera. Hotkey: Alt+T
 
 ## Paste tool
 program_3d_edit.paste_tool.location_label=Location
@@ -294,7 +294,7 @@ program_3d_edit.paste_tool.move_mode_label=Move Mode
 program_3d_edit.paste_tool.move_with_arrows_label=Move with Arrow Keys
 program_3d_edit.paste_tool.move_with_arrows_tooltip=Use arrow keys and Page Up/Down to move the paste selection.
 program_3d_edit.paste_tool.wasd_moves_cursor_label=Move Cursor instead of Camera
-program_3d_edit.paste_tool.wasd_moves_cursor_tooltip=When enabled, WASD keys will move the paste selection instead of the camera. Hotkey: Alt+C
+program_3d_edit.paste_tool.wasd_moves_cursor_tooltip=When enabled, WASD keys will move the paste selection instead of the camera. Hotkey: Alt+T
 program_3d_edit.paste_tool.follow_cursor_label=Follow Cursor
 program_3d_edit.paste_tool.follow_cursor_tooltip=Follow the cursor position in the viewport.
 program_3d_edit.paste_tool.rotation_label=Rotation
@@ -358,7 +358,7 @@ program_3d_edit.file_ui.version_tooltip=Platform and data version of the world
 program_3d_edit.file_ui.projection_tooltip=Change Perspective
 program_3d_edit.file_ui.move_camera_label=Move Camera
 program_3d_edit.file_ui.move_cursor_label=Move Cursor
-program_3d_edit.file_ui.move_button_tooltip=Toggle whether WASD keys move the camera or cursor. Hotkey: Alt+C
+program_3d_edit.file_ui.move_button_tooltip=Toggle whether WASD keys move the camera or cursor. Hotkey: Alt+T
 program_3d_edit.file_ui.location_tooltip=Move camera
 program_3d_edit.file_ui.speed_blocks_per_second=b/s
 program_3d_edit.file_ui.speed_tooltip=Camera speed in blocks per second

@@ -128,6 +128,10 @@ class ChunkTool(wx.BoxSizer, DefaultBaseToolUI):
         self._selection.enable()
         self._update_clipping()
 
+        # Disable move button in chunk mode since selection is not moveable
+        if hasattr(self.canvas, '_file_panel') and self.canvas._file_panel is not None:
+            self.canvas._file_panel._move_button.Enable(False)
+
         dimension = self.canvas.dimension
         if dimension not in self._dimensions:
             self._dimensions[dimension] = (
@@ -150,6 +154,10 @@ class ChunkTool(wx.BoxSizer, DefaultBaseToolUI):
         super().disable()
         self.canvas.camera.orthographic_clipping = -(10**5), 10**5
         self._button_panel.Hide()
+        
+        # Re-enable move button when leaving chunk mode
+        if hasattr(self.canvas, '_file_panel') and self.canvas._file_panel is not None:
+            self.canvas._file_panel._move_button.Enable(True)
 
     def _on_update_clipping(self, evt):
         self._update_clipping()

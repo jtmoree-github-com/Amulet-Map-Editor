@@ -234,6 +234,7 @@ class SelectTool(wx.BoxSizer, DefaultBaseToolUI):
         self.canvas.Bind(EVT_SELECTION_CHANGE, self._on_selection_change)
         self.canvas.Bind(EVT_INPUT_PRESS, self._on_input_press)
         self.canvas.Bind(EVT_INPUT_HELD, self._on_input_held)
+        self.canvas.Bind(wx.EVT_KEY_DOWN, self._on_canvas_key_down)
         self.canvas.Bind(wx.EVT_SIZE, self._on_resize)
         self._selection.bind_events()
         self._inspect_block.bind_events()
@@ -350,14 +351,68 @@ class SelectTool(wx.BoxSizer, DefaultBaseToolUI):
     def _on_panel_char_hook(self, evt: wx.KeyEvent):
         if (
             evt.GetKeyCode() == wx.WXK_TAB
-            and evt.ShiftDown()
             and not evt.ControlDown()
             and not evt.AltDown()
         ):
-            focus = wx.Window.FindFocus()
-            if focus is not None and focus.Navigate(wx.NavigationKeyEvent.IsForward):
+            if self._navigate_focus(forward=not evt.ShiftDown()):
                 return
         evt.Skip()
+
+    def _on_canvas_key_down(self, evt: wx.KeyEvent):
+        if (
+            evt.GetKeyCode() == wx.WXK_TAB
+            and not evt.ControlDown()
+            and not evt.AltDown()
+            and self._navigate_focus(forward=not evt.ShiftDown())
+        ):
+            return
+        evt.Skip()
+
+    def _navigate_focus(self, forward: bool) -> bool:
+        if not self._button_panel.IsShownOnScreen():
+            return False
+
+        controls = self._collect_focusable_children(self._button_panel)
+        if not controls:
+            return False
+
+        focus = wx.Window.FindFocus()
+        if focus in controls:
+            index = controls.index(focus)
+            target_index = (index + (1 if forward else -1)) % len(controls)
+        else:
+            target_index = 0 if forward else -1
+
+        controls[target_index].SetFocus()
+        return True
+
+    def _collect_focusable_children(self, parent: wx.Window):
+        controls = []
+        for child in parent.GetChildren():
+            if isinstance(child, wx.Window):
+                if child.IsShownOnScreen() and child.IsEnabled() and child.AcceptsFocus():
+                    controls.append(child)
+                controls.extend(self._collect_focusable_children(child))
+        return controls
+
+    def _find_first_focusable_child(self, parent: wx.Window):
+        for child in parent.GetChildren():
+            if isinstance(child, wx.Window):
+                if child.IsShownOnScreen() and child.IsEnabled() and child.AcceptsFocus():
+                    return child
+                nested = self._find_first_focusable_child(child)
+                if nested is not None:
+                    return nested
+        return None
+
+    @staticmethod
+    def _is_descendant(parent: wx.Window, child: wx.Window) -> bool:
+        current = child
+        while current is not None:
+            if current is parent:
+                return True
+            current = current.GetParent()
+        return False
 
     def _on_input_press(self, evt: InputPressEvent):
         if evt.action_id == ACT_TOGGLE_MOVE_TARGET:

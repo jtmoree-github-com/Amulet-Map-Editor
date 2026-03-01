@@ -101,11 +101,14 @@ class CameraBehaviour(BaseBehaviour):
     def _on_input_held(self, evt: InputHeldEvent):
         """Logic to run each time the input held event is run."""
         forward = up = right = pitch = yaw = 0
-        up += (ACT_MOVE_UP in evt.action_ids) - (ACT_MOVE_DOWN in evt.action_ids)
-        forward += (ACT_MOVE_FORWARDS in evt.action_ids) - (
-            ACT_MOVE_BACKWARDS in evt.action_ids
-        )
-        right += (ACT_MOVE_RIGHT in evt.action_ids) - (ACT_MOVE_LEFT in evt.action_ids)
+        
+        # Only process keyboard movement if WASD is not set to move cursor
+        if not self.canvas.wasd_moves_cursor:
+            up += (ACT_MOVE_UP in evt.action_ids) - (ACT_MOVE_DOWN in evt.action_ids)
+            forward += (ACT_MOVE_FORWARDS in evt.action_ids) - (
+                ACT_MOVE_BACKWARDS in evt.action_ids
+            )
+            right += (ACT_MOVE_RIGHT in evt.action_ids) - (ACT_MOVE_LEFT in evt.action_ids)
 
         if self.canvas.camera.projection_mode == Projection.PERSPECTIVE:
             if self.canvas.camera.rotating:

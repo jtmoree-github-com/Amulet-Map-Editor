@@ -237,14 +237,12 @@ def serialise_modifier(
     evt: Union[wx.KeyEvent, wx.MouseEvent], key: int
 ) -> ModifierType:
     modifier = []
-    if evt.ControlDown():
-        if key not in (wx.WXK_SHIFT, wx.WXK_ALT):
-            # if control is pressed the real key must not be a modifier
-            modifier.append(Control)
-            if evt.ShiftDown():
-                modifier.append(Shift)
-            if evt.AltDown():
-                modifier.append(Alt)
+    if evt.ControlDown() and key != wx.WXK_CONTROL:
+        modifier.append(Control)
+    if evt.ShiftDown() and key != wx.WXK_SHIFT:
+        modifier.append(Shift)
+    if evt.AltDown() and key != wx.WXK_ALT:
+        modifier.append(Alt)
     return tuple(modifier)
 
 
@@ -276,7 +274,7 @@ def serialise_key_event(
 ) -> Optional[SerialisedKeyType]:
     if isinstance(evt, wx.KeyEvent):
         key = evt.GetUnicodeKey() or evt.GetKeyCode()
-        if key == wx.WXK_CONTROL:
+        if key in (wx.WXK_CONTROL, wx.WXK_SHIFT, wx.WXK_ALT):
             return
         modifier = serialise_modifier(evt, key)
 
@@ -561,7 +559,28 @@ class KeyConfig(wx.BoxSizer):
             hotkey_label.SetFont(hotkey_font)
             grid_sizer.Add(hotkey_label, 0, wx.ALIGN_CENTER_VERTICAL | wx.ALIGN_RIGHT)
 
-        main_sizer.Add(grid_sizer, 0, wx.ALL | wx.ALIGN_CENTER_HORIZONTAL, 5)
+        philosophy_text = (
+            "The philosophy of this version of amulet is to improve workflow via keyboard optimization.  "
+            "Shift and tab work like other programs where shift is only a modifer and Tab is heavily used in navigating dialogs.  "
+            "Movement of camera and cursor can be done at the same time using mapped keys for both hands. "
+            "e.g. left hand for camera and and right hand for cursor.  "
+            "In additon, many hotkeys will make functionality easier to access and menus have been expanded to use traditonal style Alt Keys for access."
+        )
+        philosophy_label = wx.StaticText(
+            self._options, label=philosophy_text, style=wx.ALIGN_RIGHT
+        )
+        philosophy_label.Wrap(420)
+
+        content_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        content_sizer.Add(grid_sizer, 0, wx.ALIGN_TOP)
+        content_sizer.Add(
+            philosophy_label,
+            1,
+            wx.LEFT | wx.ALIGN_TOP,
+            20,
+        )
+
+        main_sizer.Add(content_sizer, 0, wx.ALL | wx.EXPAND, 5)
 
     def _rebuild_ungrouped_options(self, group):
         """Rebuild options panel without grouping (original behavior)."""

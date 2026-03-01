@@ -303,8 +303,8 @@ class EditExtension(wx.Panel, BaseProgram):
             lang.get("program_3d_edit.menu_bar.navigation.menu_name"), {}
         ).setdefault("navigation", {}).update(
             {
-                f"{lang.get('program_3d_edit.menu_bar.navigation.toggle_projection')}\tTab": lambda evt: self._toggle_projection(),
-                f"{lang.get('program_3d_edit.menu_bar.navigation.toggle_camera_cursor')}\tAlt+c": lambda evt: self._toggle_wasd_mode(),
+                f"{lang.get('program_3d_edit.menu_bar.navigation.toggle_projection')}\tCtrl+T": lambda evt: self._toggle_projection(),
+                f"{lang.get('program_3d_edit.menu_bar.navigation.toggle_camera_cursor')}\tAlt+T": lambda evt: self._toggle_wasd_mode(),
                 f"{lang.get('program_3d_edit.menu_bar.navigation.goto')}\tCtrl+g": lambda evt: self._canvas.goto(),
             }
         )
