@@ -354,9 +354,20 @@ class EditExtension(wx.Panel, BaseProgram):
             }
 
             # Show mouse keybind configuration
-            dialog = SimpleDialog(
-                self, lang.get("program_3d_edit.menu_bar.options.mouse_control")
+            dialog = wx.Dialog(
+                self,
+                title=lang.get("program_3d_edit.menu_bar.options.mouse_control"),
+                style=wx.CAPTION
+                | wx.CLOSE_BOX
+                | wx.MAXIMIZE_BOX
+                | wx.MINIMIZE_BOX
+                | wx.SYSTEM_MENU
+                | wx.RESIZE_BORDER,
             )
+            sizer = wx.BoxSizer(wx.VERTICAL)
+            dialog.SetSizer(sizer)
+            dialog_sizer = wx.BoxSizer(wx.VERTICAL)
+            sizer.Add(dialog_sizer, 1, wx.EXPAND)
 
             key_config = KeyConfig(
                 dialog,
@@ -369,7 +380,14 @@ class EditExtension(wx.Panel, BaseProgram):
                 show_descriptions=False,
                 require_mouse_action=True,
             )
-            dialog.sizer.Add(key_config, 1, wx.EXPAND)
+            dialog_sizer.Add(key_config, 1, wx.EXPAND)
+
+            # Add bottom button sizer
+            bottom_sizer = wx.BoxSizer(wx.HORIZONTAL)
+            sizer.Add(bottom_sizer, 0, wx.EXPAND)
+            bottom_sizer.AddStretchSpacer()
+            button_sizer = dialog.CreateButtonSizer(wx.OK | wx.CANCEL)
+            bottom_sizer.Add(button_sizer, flag=wx.ALL, border=5)
 
             dialog.Fit()
 
