@@ -34,7 +34,57 @@ class FilePanel(EditCanvasContainer):
         super().__init__(canvas)
 
         level = self.canvas.world
+        from amulet_map_editor.api import image
 
+        # Toolbar panel (undo/redo/save) at top-left
+        self._toolbar_panel = wx.Panel(canvas.GetParent())
+        self._toolbar_panel.SetBackgroundColour(
+            wx.SystemSettings.GetColour(wx.SYS_COLOUR_BTNFACE)
+        )
+        self._toolbar_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        self._toolbar_panel.SetSizer(self._toolbar_sizer)
+
+        def add_toolbar_button(label: str, tooltip: str, callback, bitmap=None):
+            button = wx.Button(self._toolbar_panel, label=label)
+            if bitmap is not None:
+                button.SetBitmap(bitmap)
+            button.SetToolTip(tooltip)
+
+            def on_button_down(evt):
+                canvas.SetFocus()
+                evt.Skip()
+
+            def wrapped_callback(evt):
+                canvas.SetFocus()
+                callback(evt)
+                wx.CallAfter(canvas.SetFocus)
+
+            button.Bind(wx.EVT_LEFT_DOWN, on_button_down)
+            button.Bind(wx.EVT_BUTTON, wrapped_callback)
+            self._toolbar_sizer.Add(button, 0, wx.ALL, 2)
+            return button
+
+        add_toolbar_button(
+            lang.get("program_3d_edit.menu_bar.edit.undo"),
+            f"{lang.get('program_3d_edit.file_ui.undo_tooltip')} (Ctrl+Z)",
+            lambda evt: canvas.undo(),
+            image.icon.tablericons.arrow_back_up.bitmap(20, 20),
+        )
+        add_toolbar_button(
+            lang.get("program_3d_edit.menu_bar.edit.redo"),
+            f"{lang.get('program_3d_edit.file_ui.redo_tooltip')} (Ctrl+Y)",
+            lambda evt: canvas.redo(),
+            image.icon.tablericons.arrow_forward_up.bitmap(20, 20),
+        )
+        self._toolbar_sizer.AddSpacer(8)
+        add_toolbar_button(
+            lang.get("program_3d_edit.menu_bar.file.save"),
+            f"{lang.get('program_3d_edit.file_ui.save_tooltip')} (Ctrl+S)",
+            lambda evt: canvas.save(),
+            image.icon.tablericons.device_floppy.bitmap(20, 20),
+        )
+
+        # Version panel at top-left below toolbar
         self._version_panel = wx.Panel(canvas.GetParent())
         self._version_panel.SetBackgroundColour(
             wx.SystemSettings.GetColour(wx.SYS_COLOUR_BTNFACE)
@@ -223,12 +273,27 @@ class FilePanel(EditCanvasContainer):
         evt.Skip()
 
     def _resize(self) -> None:
+        # Position toolbar at top-left
+        toolbar_size = self._toolbar_panel.GetBestSize()
+        self._toolbar_panel.SetSize(
+            wx.Rect(0, 0, toolbar_size.GetWidth(), toolbar_size.GetHeight())
+        )
+        self._toolbar_panel.Raise()
+
+        # Position version panel below toolbar at top-left
         version_text_size = self._version_panel.GetBestSize()
+        toolbar_height = toolbar_size.GetHeight()
         self._version_panel.SetSize(
-            wx.Rect(0, 0, version_text_size.GetWidth(), version_text_size.GetHeight())
+            wx.Rect(
+                0,
+                toolbar_height + 2,
+                version_text_size.GetWidth(),
+                version_text_size.GetHeight(),
+            )
         )
         self._version_panel.Raise()
 
+        # Position button window at top-right
         self._button_window.Layout()
         window_size = self._button_window.GetBestSize()
         canvas_size = self.canvas.GetSize()

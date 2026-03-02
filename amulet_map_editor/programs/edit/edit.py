@@ -47,7 +47,6 @@ class EditExtension(wx.Panel, BaseProgram):
 
     _world: "World"
     _canvas: Optional[EditCanvas]
-    _toolbar: Optional[wx.Panel]
 
     # setup is run in a different thread to avoid blocking the UI
     _setup_thread: Optional[Thread]
@@ -60,7 +59,6 @@ class EditExtension(wx.Panel, BaseProgram):
         self.SetSizer(self._sizer)
         self._world = world
         self._canvas = None
-        self._toolbar = None
         self._setup_thread = None
 
         self._sizer.AddStretchSpacer(1)
@@ -142,54 +140,6 @@ class EditExtension(wx.Panel, BaseProgram):
             self._temp_msg = None
             self._temp_loading_bar = None
             self._sizer.Clear(True)
-            self._toolbar = wx.Panel(self)
-            self._toolbar.SetBackgroundColour(
-                wx.SystemSettings.GetColour(wx.SYS_COLOUR_BTNFACE)
-            )
-            toolbar_sizer = wx.BoxSizer(wx.HORIZONTAL)
-            self._toolbar.SetSizer(toolbar_sizer)
-
-            def add_toolbar_button(label: str, tooltip: str, callback, bitmap=None):
-                button = wx.Button(self._toolbar, label=label)
-                if bitmap is not None:
-                    button.SetBitmap(bitmap)
-                button.SetToolTip(tooltip)
-
-                def on_button_down(evt):
-                    self._canvas.SetFocus()
-                    evt.Skip()
-
-                def wrapped_callback(evt):
-                    self._canvas.SetFocus()
-                    callback(evt)
-                    wx.CallAfter(self._canvas.SetFocus)
-
-                button.Bind(wx.EVT_LEFT_DOWN, on_button_down)
-                button.Bind(wx.EVT_BUTTON, wrapped_callback)
-                toolbar_sizer.Add(button, 0, wx.ALL, 2)
-                return button
-
-            add_toolbar_button(
-                lang.get("program_3d_edit.menu_bar.edit.undo"),
-                f"{lang.get('program_3d_edit.file_ui.undo_tooltip')} (Ctrl+Z)",
-                lambda evt: self._canvas.undo(),
-                image.icon.tablericons.arrow_back_up.bitmap(20, 20),
-            )
-            add_toolbar_button(
-                lang.get("program_3d_edit.menu_bar.edit.redo"),
-                f"{lang.get('program_3d_edit.file_ui.redo_tooltip')} (Ctrl+Y)",
-                lambda evt: self._canvas.redo(),
-                image.icon.tablericons.arrow_forward_up.bitmap(20, 20),
-            )
-            toolbar_sizer.AddSpacer(8)
-            add_toolbar_button(
-                lang.get("program_3d_edit.menu_bar.file.save"),
-                f"{lang.get('program_3d_edit.file_ui.save_tooltip')} (Ctrl+S)",
-                lambda evt: self._canvas.save(),
-                image.icon.tablericons.device_floppy.bitmap(20, 20),
-            )
-
-            self._sizer.Add(self._toolbar, 0, wx.EXPAND)
             self._sizer.Add(self._canvas, 1, wx.EXPAND)
             self._canvas.Show()
             self.Layout()
