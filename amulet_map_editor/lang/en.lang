@@ -158,6 +158,7 @@ program_about.choose_from_options=Choose from the options on the left what you w
 # Convert
 ## The program used to convert a world
 program_convert.tab_name=Convert
+program_convert.title=Convert World
 program_convert.convert_button=Convert
 program_convert.input_world=Input World:
 program_convert.output_world=Output World:
@@ -385,4 +386,4 @@ program_3d_edit.file_ui.dim_tooltip=Select dimension
 program_3d_edit.file_ui.undo_tooltip=Undo
 program_3d_edit.file_ui.redo_tooltip=Redo
 program_3d_edit.file_ui.save_tooltip=Save changes
-program_3d_edit.file_ui.close_tooltip=Close world
+program_3d_edit.file_ui.close_tooltip=Close World / Quit (Ctrl+Q)

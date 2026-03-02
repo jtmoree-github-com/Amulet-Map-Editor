@@ -91,7 +91,7 @@ class WorldPageUI(wx.Notebook, BasePageUI):
         menu.setdefault(lang.get("menu_bar.file.menu_name"), {}).setdefault(
             "exit", {}
         ).setdefault(
-            f"&{lang.get('menu_bar.file.close_world')}",
+            f"&{lang.get('menu_bar.file.close_world')}/Quit\tCtrl+Q",
             lambda evt: app.close_level(self.path),
         )
         return self.GetPage(self.GetSelection()).menu(menu)

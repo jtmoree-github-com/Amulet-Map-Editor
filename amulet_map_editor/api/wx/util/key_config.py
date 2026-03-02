@@ -629,6 +629,7 @@ class KeyConfig(wx.BoxSizer):
 
         misc_hotkeys = [
             (lang.get("menu_bar.file.open_world"), "Ctrl+O"),
+            ("Close World / Quit", "Ctrl+Q"),
             (lang.get("program_3d_edit.menu_bar.file.save"), "Ctrl+S"),
             ("Save All", "Ctrl+Shift+S"),
             ("Next Tab in Current World", "Ctrl+Shift+Page Down"),

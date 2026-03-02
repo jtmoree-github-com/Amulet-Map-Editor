@@ -86,12 +86,14 @@ class AmuletUI(wx.Frame):
         ID_CTRL_PAGEUP = 10002
         ID_CTRL_SHIFT_PAGEDOWN = 10003
         ID_CTRL_SHIFT_PAGEUP = 10004
+        ID_CTRL_Q = 10005
         
         acc_entries = [
             wx.AcceleratorEntry(wx.ACCEL_CTRL, wx.WXK_PAGEDOWN, ID_CTRL_PAGEDOWN),
             wx.AcceleratorEntry(wx.ACCEL_CTRL, wx.WXK_PAGEUP, ID_CTRL_PAGEUP),
             wx.AcceleratorEntry(wx.ACCEL_CTRL | wx.ACCEL_SHIFT, wx.WXK_PAGEDOWN, ID_CTRL_SHIFT_PAGEDOWN),
             wx.AcceleratorEntry(wx.ACCEL_CTRL | wx.ACCEL_SHIFT, wx.WXK_PAGEUP, ID_CTRL_SHIFT_PAGEUP),
+            wx.AcceleratorEntry(wx.ACCEL_CTRL, ord('Q'), ID_CTRL_Q),
         ]
         
         accel_table = wx.AcceleratorTable(acc_entries)
@@ -102,6 +104,7 @@ class AmuletUI(wx.Frame):
         self.Bind(wx.EVT_MENU, self._on_accel_ctrl_pageup, id=ID_CTRL_PAGEUP)
         self.Bind(wx.EVT_MENU, self._on_accel_ctrl_shift_pagedown, id=ID_CTRL_SHIFT_PAGEDOWN)
         self.Bind(wx.EVT_MENU, self._on_accel_ctrl_shift_pageup, id=ID_CTRL_SHIFT_PAGEUP)
+        self.Bind(wx.EVT_MENU, self._on_accel_ctrl_q, id=ID_CTRL_Q)
     
     def _on_accel_ctrl_pagedown(self, evt):
         """Handle Ctrl+PageDown - next world."""
@@ -142,6 +145,14 @@ class AmuletUI(wx.Frame):
             selection = self._level_notebook.GetSelection()
             next_page = (selection + direction) % page_count
             self._level_notebook.SetSelection(next_page)
+    
+    def _on_accel_ctrl_q(self, evt):
+        """Handle Ctrl+Q - close current world or quit if on main menu."""
+        current_page = self._level_notebook.GetCurrentPage()
+        if isinstance(current_page, WorldPageUI):
+            self.close_level(current_page.path)
+        elif current_page is self._level_notebook._main_menu:
+            self.Close()
 
     def open_world_select_tab(self):
         """Open the world selector as a tab. You should use the method in the app."""
@@ -167,7 +178,7 @@ class AmuletUI(wx.Frame):
         # menu_dict.setdefault(lang.get('menu_bar.file.menu_name'), {}).setdefault('system', {}).setdefault('Create World', lambda: self.world.save())
         menu_dict.setdefault(lang.get("menu_bar.file.menu_name"), {}).setdefault(
             "exit", {}
-        ).setdefault(f"&{lang.get('menu_bar.file.quit')}", lambda evt: self.Close())
+        ).setdefault(f"&{lang.get('menu_bar.file.quit')}\tCtrl+Q", lambda evt: self.Close())
         menu_dict = self._level_notebook.extend_menu(menu_dict)
         menu_bar = wx.MenuBar()
         for menu_name, menu_data in menu_dict.items():

@@ -12,7 +12,6 @@ from amulet_map_editor.api.wx.ui.simple import SimplePanel, SimpleScrollablePane
 from amulet_map_editor.api.wx.ui.select_world import WorldSelectDialog, WorldUI
 from amulet_map_editor.api.datatypes import MenuData
 from amulet_map_editor.api.framework.programs import BaseProgram
-from amulet_map_editor import close_level
 
 if TYPE_CHECKING:
     from amulet.api.wrapper import WorldFormatWrapper
@@ -26,11 +25,13 @@ class ConvertExtension(SimpleScrollablePanel, BaseProgram):
         self._thread: Optional[Thread] = None
         self.world = world
 
-        self._close_world_button = wx.Button(
-            self, wx.ID_ANY, label=lang.get("world.close_world")
-        )
-        self._close_world_button.Bind(wx.EVT_BUTTON, self._close_world)
-        self.add_object(self._close_world_button, 0, wx.ALL | wx.CENTER)
+        # Add title
+        title = wx.StaticText(self, label=lang.get("program_convert.title"))
+        font = title.GetFont()
+        font.PointSize += 2
+        font = font.Bold()
+        title.SetFont(font)
+        self.add_object(title, 0, wx.ALL | wx.CENTER)
 
         self._input = SimplePanel(self, wx.HORIZONTAL)
         self.add_object(self._input, 0, wx.ALL | wx.CENTER)
@@ -171,6 +172,3 @@ class ConvertExtension(SimpleScrollablePanel, BaseProgram):
             )
             return False
         return True
-
-    def _close_world(self, evt):
-        close_level(self.world.level_path)
