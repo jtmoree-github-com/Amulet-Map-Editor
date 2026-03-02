@@ -232,7 +232,7 @@ class WorldUIButton(WorldUI):
         self.path = world_format.path
         self.open_world_callback = open_world_callback
         self._is_hovered = False
-        self._is_focused = False
+        self._is_selected = False
 
         self._default_bg = wx.SystemSettings.GetColour(wx.SYS_COLOUR_WINDOW)
         self._default_fg = wx.SystemSettings.GetColour(wx.SYS_COLOUR_WINDOWTEXT)
@@ -258,78 +258,21 @@ class WorldUIButton(WorldUI):
         self.img.Bind(wx.EVT_LEAVE_WINDOW, self._on_leave_window)
         self.world_name.Bind(wx.EVT_LEAVE_WINDOW, self._on_leave_window)
 
-        self.Bind(wx.EVT_SET_FOCUS, self._on_set_focus)
-        self.Bind(wx.EVT_KILL_FOCUS, self._on_kill_focus)
-        self.Bind(wx.EVT_CHAR_HOOK, self._on_key_down)
-        self.Bind(wx.EVT_KEY_DOWN, self._on_key_down)
-        self.Bind(wx.EVT_NAVIGATION_KEY, self._on_navigation_key)
-
     def AcceptsFocus(self) -> bool:
         return True
 
     def AcceptsFocusFromKeyboard(self) -> bool:
-        return True
+        # Don't accept focus from Tab key - parent WorldList handles that
+        return False
 
-    def _on_key_down(self, evt: wx.KeyEvent):
-        key_code = evt.GetKeyCode()
-
-        if key_code in (wx.WXK_RETURN, wx.WXK_NUMPAD_ENTER, wx.WXK_SPACE):
-            self.open_world_callback(self.path)
-            return  # Consume the event
-        elif key_code in (wx.WXK_UP, wx.WXK_NUMPAD_UP, wx.WXK_DOWN, wx.WXK_NUMPAD_DOWN):
-            world_list = self.GetParent()
-            if isinstance(world_list, WorldList) and self in world_list.worlds:
-                index = world_list.worlds.index(self)
-                delta = -1 if key_code in (wx.WXK_UP, wx.WXK_NUMPAD_UP) else 1
-                next_index = max(0, min(len(world_list.worlds) - 1, index + delta))
-                if next_index != index:
-                    world_list.worlds[next_index].SetFocus()
-                    return  # Consume the event
-        elif key_code == wx.WXK_TAB:
-            world_list = self.GetParent()
-            if isinstance(world_list, WorldList) and self in world_list.worlds:
-                index = world_list.worlds.index(self)
-                delta = -1 if evt.ShiftDown() else 1
-                next_index = index + delta
-                if 0 <= next_index < len(world_list.worlds):
-                    world_list.worlds[next_index].SetFocus()
-                    return  # Consume the event
-                else:
-                    direction = (
-                        wx.NavigationKeyEvent.IsBackward
-                        if evt.ShiftDown()
-                        else wx.NavigationKeyEvent.IsForward
-                    )
-                    self.Navigate(direction)
-                    return  # Consume the event
-        
-        evt.Skip()
-
-    def _on_navigation_key(self, evt: wx.NavigationKeyEvent):
-        world_list = self.GetParent()
-        if not isinstance(world_list, WorldList) or self not in world_list.worlds:
-            evt.Skip()
-            return
-
-        index = world_list.worlds.index(self)
-        delta = 1 if evt.GetDirection() else -1
-        next_index = index + delta
-
-        if 0 <= next_index < len(world_list.worlds):
-            world_list.worlds[next_index].SetFocus()
-            return
-
-        evt.Skip()
-
-    def _on_set_focus(self, evt: wx.FocusEvent):
-        self._is_focused = True
+    def set_selected(self, selected: bool):
+        """Set the visual selection state of this button."""
+        self._is_selected = selected
         self._apply_visual_state()
-        evt.Skip()
 
-    def _on_kill_focus(self, evt: wx.FocusEvent):
-        self._is_focused = False
-        self._apply_visual_state()
-        evt.Skip()
+    def is_selected(self) -> bool:
+        """Check if this button is currently selected."""
+        return self._is_selected
 
     def _on_enter_window(self, evt: wx.MouseEvent):
         self._is_hovered = True
@@ -342,11 +285,15 @@ class WorldUIButton(WorldUI):
         evt.Skip()
 
     def _on_left_down(self, evt: wx.MouseEvent):
-        self.SetFocus()
+        # Notify parent WorldList to select this button and set focus
+        world_list = self.GetParent()
+        if isinstance(world_list, WorldList):
+            world_list.select_world_by_button(self)
+            world_list.SetFocus()
         evt.Skip()
 
     def _apply_visual_state(self):
-        if self._is_focused:
+        if self._is_selected:
             bg = self._focus_bg
             fg = self._focus_fg
         elif self._is_hovered:
@@ -365,7 +312,11 @@ class WorldUIButton(WorldUI):
 
 
 class WorldList(wx.Panel):
-    """A Panel containing zero or more `WorldUIButton`s."""
+    """A Panel containing zero or more `WorldUIButton`s.
+    
+    Acts as a single component for Tab navigation, with arrow keys
+    navigating between individual world buttons.
+    """
 
     def __init__(self, parent: wx.Window, world_dirs, open_world_callback, sort=True):
         super().__init__(parent)
@@ -373,6 +324,8 @@ class WorldList(wx.Panel):
         self.SetSizer(sizer)
 
         self.worlds = []
+        self._selected_index = 0
+        self._open_world_callback = open_world_callback
 
         world_formats = []
         for world_path in world_dirs:
@@ -398,7 +351,87 @@ class WorldList(wx.Panel):
             except Exception as e:
                 log.info(f"Failed to display world button for {world_format.path} {e}")
 
+        # Set up keyboard handling
+        self.Bind(wx.EVT_SET_FOCUS, self._on_set_focus)
+        self.Bind(wx.EVT_KILL_FOCUS, self._on_kill_focus)
+        self.Bind(wx.EVT_KEY_DOWN, self._on_key_down)
+        self.Bind(wx.EVT_CHAR_HOOK, self._on_key_down)
+
+        # Initialize with first item selected if any worlds exist
+        if self.worlds:
+            self.worlds[0].set_selected(True)
+
         self.Layout()
+
+    def AcceptsFocus(self) -> bool:
+        return len(self.worlds) > 0
+
+    def AcceptsFocusFromKeyboard(self) -> bool:
+        return len(self.worlds) > 0
+
+    def select_world_by_button(self, button: WorldUIButton):
+        """Select a world by its button reference."""
+        if button in self.worlds:
+            self._set_selection(self.worlds.index(button))
+
+    def _set_selection(self, index: int):
+        """Set the selected world index and update visual state."""
+        if not self.worlds or index < 0 or index >= len(self.worlds):
+            return
+
+        # Clear previous selection
+        if 0 <= self._selected_index < len(self.worlds):
+            self.worlds[self._selected_index].set_selected(False)
+
+        # Set new selection
+        self._selected_index = index
+        self.worlds[self._selected_index].set_selected(True)
+
+    def _on_set_focus(self, evt: wx.FocusEvent):
+        """When the list gains focus, show the selected item."""
+        if self.worlds and 0 <= self._selected_index < len(self.worlds):
+            self.worlds[self._selected_index].set_selected(True)
+        evt.Skip()
+
+    def _on_kill_focus(self, evt: wx.FocusEvent):
+        """When the list loses focus, keep selection visible."""
+        # Keep the selection visible even when focus is lost
+        evt.Skip()
+
+    def _on_key_down(self, evt: wx.KeyEvent):
+        """Handle keyboard navigation within the list."""
+        if not self.worlds:
+            evt.Skip()
+            return
+
+        key_code = evt.GetKeyCode()
+
+        if key_code in (wx.WXK_RETURN, wx.WXK_NUMPAD_ENTER, wx.WXK_SPACE):
+            # Activate the selected world
+            if 0 <= self._selected_index < len(self.worlds):
+                self._open_world_callback(self.worlds[self._selected_index].path)
+            return  # Consume the event
+        elif key_code in (wx.WXK_UP, wx.WXK_NUMPAD_UP):
+            # Move selection up
+            new_index = max(0, self._selected_index - 1)
+            self._set_selection(new_index)
+            return  # Consume the event
+        elif key_code in (wx.WXK_DOWN, wx.WXK_NUMPAD_DOWN):
+            # Move selection down
+            new_index = min(len(self.worlds) - 1, self._selected_index + 1)
+            self._set_selection(new_index)
+            return  # Consume the event
+        elif key_code == wx.WXK_TAB:
+            # Let Tab navigate out of the list
+            direction = (
+                wx.NavigationKeyEvent.IsBackward
+                if evt.ShiftDown()
+                else wx.NavigationKeyEvent.IsForward
+            )
+            self.Navigate(direction)
+            return  # Consume the event
+
+        evt.Skip()
 
 
 class CollapsibleWorldListUI(wx.CollapsiblePane):
