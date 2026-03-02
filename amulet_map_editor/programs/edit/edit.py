@@ -14,7 +14,7 @@ DEFAULT_RECENT_WORLDS_LIMIT = 5
 from amulet_map_editor import lang
 from amulet_map_editor.api.framework.programs import BaseProgram
 from amulet_map_editor.api.datatypes import MenuData
-from amulet_map_editor.api.wx.util.key_config import KeyConfigDialog
+from amulet_map_editor.api.wx.util.key_config import KeyConfigDialog, KeyConfig
 from amulet_map_editor.api.wx.ui.traceback_dialog import TracebackDialog
 from amulet_map_editor.api.wx.ui.simple import SimpleDialog
 from amulet_map_editor.programs.edit.api.canvas.edit_canvas import EditCanvas
@@ -358,8 +358,21 @@ class EditExtension(wx.Panel, BaseProgram):
         edit_config = config.get(EDIT_CONFIG_ID, {})
         keybind_id = edit_config.get("keybind_group", DefaultKeybindGroupId)
         user_keybinds = edit_config.get("user_keybinds", {})
+        fixed_keybinds = {
+            group_id: {
+                **KeyboardPresets.get(group_id, {}),
+                **MousePresets.get(group_id, {}),
+            }
+            for group_id in set(KeyboardPresets) | set(MousePresets)
+        }
         key_config = KeyConfigDialog(
-            self, keybind_id, KeyboardKeys, KeyboardPresets, user_keybinds, KeyboardActionGroups, require_mouse_action=False
+            self,
+            keybind_id,
+            KeyboardKeys,
+            fixed_keybinds,
+            user_keybinds,
+            KeyboardActionGroups,
+            require_mouse_action=False,
         )
         if key_config.ShowModal() == wx.ID_OK:
             user_keybinds, keybind_id, keybinds = key_config.options
@@ -382,64 +395,50 @@ class EditExtension(wx.Panel, BaseProgram):
             edit_config = config.get(EDIT_CONFIG_ID, {})
             keybind_id = edit_config.get("keybind_group", DefaultKeybindGroupId)
             user_keybinds = edit_config.get("user_keybinds", {})
-            mouse_sensitivity = self._canvas.camera.rotate_speed
-            
+            fixed_keybinds = {
+                group_id: {
+                    **KeyboardPresets.get(group_id, {}),
+                    **MousePresets.get(group_id, {}),
+                }
+                for group_id in set(KeyboardPresets) | set(MousePresets)
+            }
+
             # Show mouse keybind configuration
-            key_config = KeyConfigDialog(
-                self, keybind_id, MouseKeys, MousePresets, user_keybinds, MouseActionGroups, show_misc=False, show_descriptions=False, require_mouse_action=True
+            dialog = SimpleDialog(
+                self, lang.get("program_3d_edit.menu_bar.options.mouse_control")
             )
-            if key_config.ShowModal() == wx.ID_OK:
+
+            key_config = KeyConfig(
+                dialog,
+                keybind_id,
+                MouseKeys,
+                fixed_keybinds,
+                user_keybinds,
+                MouseActionGroups,
+                show_misc=False,
+                show_descriptions=False,
+                require_mouse_action=True,
+            )
+            dialog.sizer.Add(key_config, 1, wx.EXPAND)
+
+            dialog.Fit()
+
+            if dialog.ShowModal() == wx.ID_OK:
                 user_keybinds, keybind_id, mouse_keybinds = key_config.options
                 edit_config["user_keybinds"] = user_keybinds
                 edit_config["keybind_group"] = keybind_id
-                
-                # Now show mouse sensitivity dialog
-                dialog = SimpleDialog(self, "Mouse Sensitivity")
-                sizer = wx.FlexGridSizer(1, 2, 0, 0)
-                dialog.sizer.Add(sizer, flag=wx.ALL, border=5)
+                config.put(EDIT_CONFIG_ID, edit_config)
 
-                mouse_sensitivity_ui = wx.SpinCtrlDouble(
-                    dialog, min=0, max=10, initial=mouse_sensitivity
-                )
-
-                def set_mouse_sensitivity(evt):
-                    self._canvas.camera.rotate_speed = mouse_sensitivity_ui.GetValue()
-
-                mouse_sensitivity_ui.Bind(wx.EVT_SPINCTRLDOUBLE, set_mouse_sensitivity)
-                sizer.Add(
-                    wx.StaticText(dialog, label="Mouse Sensitivity"),
-                    flag=wx.LEFT | wx.TOP | wx.ALIGN_CENTER_VERTICAL | wx.EXPAND,
-                    border=5,
-                )
-                sizer.Add(
-                    mouse_sensitivity_ui,
-                    flag=wx.LEFT | wx.TOP | wx.ALIGN_CENTER_VERTICAL | wx.EXPAND,
-                    border=5,
-                )
-
-                dialog.Fit()
-
-                response = dialog.ShowModal()
-                if response == wx.ID_OK:
-                    edit_config.setdefault("options", {})
-                    edit_config["options"]["mouse_sensitivity"] = mouse_sensitivity_ui.GetValue()
-                    config.put(EDIT_CONFIG_ID, edit_config)
-                    
-                    # Register both keyboard and mouse bindings
-                    self._canvas.buttons.clear_registered_actions()
-                    # Get keyboard bindings for this preset
-                    if keybind_id in user_keybinds:
-                        keyboard_keybinds = {k: v for k, v in user_keybinds[keybind_id].items() if k in KeyboardKeys}
-                    else:
-                        keyboard_keybinds = KeyboardPresets.get(keybind_id, {})
-                    # Combine keyboard and mouse bindings
-                    combined_keybinds = {**keyboard_keybinds, **mouse_keybinds}
-                    self._canvas.buttons.register_actions(combined_keybinds)
-                elif response == wx.ID_CANCEL:
-                    self._canvas.camera.rotate_speed = mouse_sensitivity
-            else:
-                # KeyConfig dialog was cancelled, revert any user_keybinds changes
-                pass
+                # Register both keyboard and mouse bindings
+                self._canvas.buttons.clear_registered_actions()
+                if keybind_id in user_keybinds:
+                    keyboard_keybinds = {
+                        k: v for k, v in user_keybinds[keybind_id].items() if k in KeyboardKeys
+                    }
+                else:
+                    keyboard_keybinds = KeyboardPresets.get(keybind_id, {})
+                combined_keybinds = {**keyboard_keybinds, **mouse_keybinds}
+                self._canvas.buttons.register_actions(combined_keybinds)
 
     def _edit_camera_controls(self):
         if self._canvas is not None:

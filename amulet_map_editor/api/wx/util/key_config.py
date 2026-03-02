@@ -439,7 +439,7 @@ class KeyConfig(wx.BoxSizer):
         top_sizer.Add(self._delete, 0, wx.ALL, 5)
 
         self._rename = wx.BitmapButton(parent, bitmap=EDIT_ICON.bitmap(32, 32))
-        self._rename.SetToolTip("Edit")
+        self._rename.SetToolTip("Edit Name")
         self._rename.Bind(wx.EVT_BUTTON, lambda evt: self._rename_group())
         top_sizer.Add(self._rename, 0, wx.ALL, 5)
 
@@ -455,18 +455,20 @@ class KeyConfig(wx.BoxSizer):
             group = self._fixed_keybinds[group_id]
             self._delete.Disable()
             self._rename.Disable()
+            editable = False
         else:
             group = self._user_keybinds[group_id]
             self._delete.Enable()
             self._rename.Enable()
+            editable = True
 
         # Rebuild the options panel with or without grouping
         if self._action_groups:
-            self._rebuild_grouped_options(group)
+            self._rebuild_grouped_options(group, editable)
         else:
-            self._rebuild_ungrouped_options(group)
+            self._rebuild_ungrouped_options(group, editable)
 
-    def _rebuild_grouped_options(self, group):
+    def _rebuild_grouped_options(self, group, editable: bool):
         """Rebuild options panel with section headings and grouped actions."""
         # Clear existing widgets
         self._options.sizer.Clear(True)
@@ -518,16 +520,32 @@ class KeyConfig(wx.BoxSizer):
             if actions_to_show or readonly_items:
                 grid_sizer = wx.FlexGridSizer(0, 2, 5, 5)
                 for action in actions_to_show:
-                    self._key_buttons[action] = button = wx.Button(self._options)
-                    button.SetLabel(stringify_key(group.get(action, ((), "NONE"))))
-                    button.SetMinSize((170, -1))
-                    button.Bind(wx.EVT_BUTTON, lambda evt, a=action: self._modify_button(a))
-                    grid_sizer.Add(
-                        button,
-                        0,
-                        wx.ALIGN_RIGHT | wx.ALIGN_CENTER_VERTICAL | wx.RIGHT,
-                        12,
-                    )
+                    key_text = stringify_key(group.get(action, ((), "NONE")))
+                    if editable:
+                        self._key_buttons[action] = button = wx.Button(self._options)
+                        button.SetLabel(key_text)
+                        button.SetMinSize((170, -1))
+                        button.Bind(
+                            wx.EVT_BUTTON,
+                            lambda evt, a=action: self._modify_button(a),
+                        )
+                        grid_sizer.Add(
+                            button,
+                            0,
+                            wx.ALIGN_RIGHT | wx.ALIGN_CENTER_VERTICAL | wx.RIGHT,
+                            12,
+                        )
+                    else:
+                        hotkey_label = wx.StaticText(self._options, label=key_text)
+                        hotkey_font = hotkey_label.GetFont()
+                        hotkey_font = hotkey_font.Bold()
+                        hotkey_label.SetFont(hotkey_font)
+                        grid_sizer.Add(
+                            hotkey_label,
+                            0,
+                            wx.ALIGN_RIGHT | wx.ALIGN_CENTER_VERTICAL | wx.RIGHT,
+                            12,
+                        )
                     label = wx.StaticText(
                         self._options, label=lang.get(f"action.{action.lower()}"), style=wx.ALIGN_LEFT
                     )
@@ -651,7 +669,7 @@ class KeyConfig(wx.BoxSizer):
         main_sizer.Add(heading, 0, wx.LEFT | wx.BOTTOM, 5)
         main_sizer.Add(grid_sizer, 0, wx.ALL, 5)
 
-    def _rebuild_ungrouped_options(self, group):
+    def _rebuild_ungrouped_options(self, group, editable: bool):
         """Rebuild options panel without grouping (original behavior)."""
         # Clear existing widgets
         self._options.sizer.Clear(True)
@@ -660,16 +678,29 @@ class KeyConfig(wx.BoxSizer):
         grid_sizer = wx.FlexGridSizer(len(self._entries), 2, 5, 5)
         self._options.sizer.Add(grid_sizer, 0, wx.ALL | wx.EXPAND, 5)
         for action in self._entries:
-            self._key_buttons[action] = button = wx.Button(self._options)
-            button.SetLabel(stringify_key(group.get(action, ((), "NONE"))))
-            button.SetMinSize((170, -1))
-            button.Bind(wx.EVT_BUTTON, lambda evt, a=action: self._modify_button(a))
-            grid_sizer.Add(
-                button,
-                0,
-                wx.ALIGN_RIGHT | wx.ALIGN_CENTER_VERTICAL | wx.RIGHT,
-                12,
-            )
+            key_text = stringify_key(group.get(action, ((), "NONE")))
+            if editable:
+                self._key_buttons[action] = button = wx.Button(self._options)
+                button.SetLabel(key_text)
+                button.SetMinSize((170, -1))
+                button.Bind(wx.EVT_BUTTON, lambda evt, a=action: self._modify_button(a))
+                grid_sizer.Add(
+                    button,
+                    0,
+                    wx.ALIGN_RIGHT | wx.ALIGN_CENTER_VERTICAL | wx.RIGHT,
+                    12,
+                )
+            else:
+                hotkey_label = wx.StaticText(self._options, label=key_text)
+                hotkey_font = hotkey_label.GetFont()
+                hotkey_font = hotkey_font.Bold()
+                hotkey_label.SetFont(hotkey_font)
+                grid_sizer.Add(
+                    hotkey_label,
+                    0,
+                    wx.ALIGN_RIGHT | wx.ALIGN_CENTER_VERTICAL | wx.RIGHT,
+                    12,
+                )
             label = wx.StaticText(
                 self._options, label=lang.get(f"action.{action.lower()}"), style=wx.ALIGN_LEFT
             )
@@ -737,7 +768,19 @@ class KeyConfig(wx.BoxSizer):
             group = self._fixed_keybinds[old_group_name]
         else:
             group = self._user_keybinds[old_group_name]
-        self._user_keybinds[group_name] = group.copy()
+        new_group = group.copy()
+
+        # Safeguard: when cloning a user-defined group, backfill any missing
+        # mappings from a fixed preset so partial groups stay complete.
+        if old_group_name in self._user_keybinds and self._fixed_keybinds:
+            fallback_fixed_group = self._fixed_keybinds.get(old_group_name)
+            if fallback_fixed_group is None:
+                first_fixed_group_id = next(iter(self._fixed_keybinds))
+                fallback_fixed_group = self._fixed_keybinds[first_fixed_group_id]
+            for action, key in fallback_fixed_group.items():
+                new_group.setdefault(action, key)
+
+        self._user_keybinds[group_name] = new_group
         self._rebuild_choice(group_name)
 
     def _is_mouse_key(self, key: SerialisedKeyType) -> bool:

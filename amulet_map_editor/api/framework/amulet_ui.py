@@ -368,7 +368,16 @@ class AmuletLevelNotebook(flatnotebook.FlatNotebook):
     def on_app_close(self, evt: wx.CloseEvent):
         for path, page in list(self._open_worlds.items()):
             self.close_level(path)
-        if self.GetPageCount() > 1:
+
+        # Ignore the world selector page during application close.
+        if self._world_selector is not None:
+            page_index = self.GetPageIndex(self._world_selector)
+            if page_index != wx.NOT_FOUND:
+                self.DeletePage(page_index)
+            self._world_selector = None
+
+        # Only block close if actual world pages are still open.
+        if self._open_worlds:
             wx.MessageBox(lang.get("app.world_still_used"))
         else:
             evt.Skip()
