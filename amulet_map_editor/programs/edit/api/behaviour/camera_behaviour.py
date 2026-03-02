@@ -22,6 +22,10 @@ from ..key_config import (
     ACT_MOVE_BACKWARDS,
     ACT_MOVE_LEFT,
     ACT_MOVE_RIGHT,
+    ACT_LOOK_UP,
+    ACT_LOOK_DOWN,
+    ACT_LOOK_LEFT,
+    ACT_LOOK_RIGHT,
     ACT_CHANGE_MOUSE_MODE,
     ACT_INCR_SPEED,
     ACT_DECR_SPEED,
@@ -88,9 +92,11 @@ class CameraBehaviour(BaseBehaviour):
         elif evt.action_id == ACT_INCR_SPEED:
             if self.canvas.camera.projection_mode == Projection.PERSPECTIVE:
                 self.canvas.camera.move_speed *= 1.1
+                self.canvas.camera.rotate_speed *= 1.1
         elif evt.action_id == ACT_DECR_SPEED:
             if self.canvas.camera.projection_mode == Projection.PERSPECTIVE:
                 self.canvas.camera.move_speed /= 1.1
+                self.canvas.camera.rotate_speed /= 1.1
         elif evt.action_id == ACT_ZOOM_IN:
             if self.canvas.camera.projection_mode == Projection.TOP_DOWN:
                 self.canvas.camera.fov = max(0.5, self.canvas.camera.fov / 1.1)
@@ -109,11 +115,17 @@ class CameraBehaviour(BaseBehaviour):
                 ACT_MOVE_BACKWARDS in evt.action_ids
             )
             right += (ACT_MOVE_RIGHT in evt.action_ids) - (ACT_MOVE_LEFT in evt.action_ids)
+        
+        # Handle keyboard camera rotation (Alt + WASD) only when WASD controls camera.
+        if not self.canvas.wasd_moves_cursor:
+            # Use 2.0 as base multiplier, which gets scaled by rotate_speed in move_camera_relative
+            pitch += ((ACT_LOOK_DOWN in evt.action_ids) - (ACT_LOOK_UP in evt.action_ids)) * 2.0
+            yaw += ((ACT_LOOK_RIGHT in evt.action_ids) - (ACT_LOOK_LEFT in evt.action_ids)) * 2.0
 
         if self.canvas.camera.projection_mode == Projection.PERSPECTIVE:
             if self.canvas.camera.rotating:
-                pitch = self.canvas.mouse.delta_y * 0.07
-                yaw = self.canvas.mouse.delta_x * 0.07
+                pitch += self.canvas.mouse.delta_y * 0.07
+                yaw += self.canvas.mouse.delta_x * 0.07
                 self.canvas.mouse.warp_middle()
                 self.canvas.mouse.reset_delta()
             self.move_camera_relative(forward, up, right, pitch, yaw)

@@ -2,9 +2,12 @@ import wx
 from typing import Set, Dict, Tuple
 
 from .window_container import WindowContainer
-from .key_config import KeyType, serialise_key, KeybindGroup
+from .key_config import KeyType, serialise_key, KeybindGroup, Control, Shift, Alt
 
 ActionIDType = str
+
+# Define the set of modifier keys
+MODIFIER_KEYS = {Control, Shift, Alt}
 
 
 _InputPressEventType = wx.NewEventType()
@@ -200,11 +203,15 @@ class ButtonInput(WindowContainer):
 
     def _find_actions(self, key: KeyType) -> Tuple[ActionIDType, ...]:
         """A method to find all actions triggered by `key` with the modifier keys also pressed."""
+        # Get the currently pressed modifier keys
+        pressed_modifiers = self._pressed_keys & MODIFIER_KEYS
+        
         return tuple(
             action_id
             for action_id, action in self._registered_actions.items()
             if action.trigger_key == key
             and action.modifier_keys.issubset(self._pressed_keys)
+            and action.modifier_keys == pressed_modifiers  # Exact modifier match
         )
 
     def _press(self, evt):
@@ -219,7 +226,21 @@ class ButtonInput(WindowContainer):
                 wx.PostEvent(self.window, InputPressEvent(action_id))
 
             self._pressed_keys.add(key)
-        evt.Skip()
+            
+            # Only skip event if no actions were found, or if Alt is pressed but not used by any action
+            # This prevents Alt+key combinations from triggering Windows menu beeps
+            skip_event = True
+            if action_ids and Alt in self._pressed_keys:
+                # If any action uses Alt as a modifier, don't skip to prevent menu activation
+                for action_id in action_ids:
+                    if Alt in self._registered_actions[action_id].modifier_keys:
+                        skip_event = False
+                        break
+            
+            if skip_event:
+                evt.Skip()
+        else:
+            evt.Skip()
 
     def _release(self, evt):
         """Event to handle a number of different key releases"""

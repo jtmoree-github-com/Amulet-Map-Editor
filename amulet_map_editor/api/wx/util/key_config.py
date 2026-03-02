@@ -357,6 +357,9 @@ class KeyConfigDialog(SimpleDialog):
         fixed_keybinds: KeybindContainer,
         user_keybinds: KeybindContainer,
         action_groups: Optional[Dict[str, Sequence[KeyActionType]]] = None,
+        show_misc: bool = True,
+        show_descriptions: bool = True,
+        require_mouse_action: Optional[bool] = None,
     ):
         # Initialize SimpleDialog but override the style to include window management
         wx.Dialog.__init__(
@@ -381,11 +384,14 @@ class KeyConfigDialog(SimpleDialog):
         self.bottom_sizer.Add(button_sizer, flag=wx.ALL, border=5)
         
         self._key_config = KeyConfig(
-            self, selected_group, entries, fixed_keybinds, user_keybinds, action_groups
+            self, selected_group, entries, fixed_keybinds, user_keybinds, action_groups, show_misc, show_descriptions, require_mouse_action
         )
         self.sizer.Add(self._key_config, 1, wx.EXPAND)
         self.Layout()
         self.Fit()
+        
+        # Set focus on the scrollable panel for keyboard navigation
+        wx.CallAfter(self._key_config._options.SetFocus)
 
     @property
     def options(self) -> Tuple[KeybindContainer, KeybindGroupIdType, KeybindGroup]:
@@ -401,12 +407,18 @@ class KeyConfig(wx.BoxSizer):
         fixed_keybinds: KeybindContainer,
         user_keybinds: KeybindContainer,
         action_groups: Optional[Dict[str, Sequence[KeyActionType]]] = None,
+        show_misc: bool = True,
+        show_descriptions: bool = True,
+        require_mouse_action: Optional[bool] = None,
     ):
         super().__init__(wx.VERTICAL)
         self._entries = entries
         self._fixed_keybinds = fixed_keybinds
         self._user_keybinds = user_keybinds
         self._action_groups = action_groups
+        self._show_misc = show_misc
+        self._show_descriptions = show_descriptions
+        self._require_mouse_action = require_mouse_action
 
         top_sizer = wx.BoxSizer(wx.HORIZONTAL)
         self.Add(top_sizer, 0, wx.EXPAND)
@@ -427,6 +439,7 @@ class KeyConfig(wx.BoxSizer):
         top_sizer.Add(self._delete, 0, wx.ALL, 5)
 
         self._rename = wx.BitmapButton(parent, bitmap=EDIT_ICON.bitmap(32, 32))
+        self._rename.SetToolTip("Edit")
         self._rename.Bind(wx.EVT_BUTTON, lambda evt: self._rename_group())
         top_sizer.Add(self._rename, 0, wx.ALL, 5)
 
@@ -462,11 +475,25 @@ class KeyConfig(wx.BoxSizer):
         # Create main vertical sizer
         main_sizer = wx.BoxSizer(wx.VERTICAL)
         self._options.sizer.Add(main_sizer, 1, wx.EXPAND | wx.ALL, 5)
+
+        if self._show_misc:
+            philosophy_text = lang.get("key_config.philosophy")
+            philosophy_label = wx.StaticText(
+                self._options, label=philosophy_text, style=wx.ALIGN_LEFT
+            )
+            philosophy_label.Wrap(620)
+            main_sizer.Add(philosophy_label, 0, wx.ALL | wx.EXPAND, 10)
+            main_sizer.Add(wx.StaticLine(self._options), 0, wx.EXPAND | wx.ALL, 5)
+
+        if self._show_misc:
+            self._add_misc_hotkeys(main_sizer)
+            main_sizer.Add(wx.StaticLine(self._options), 0, wx.EXPAND | wx.ALL, 5)
         
         # Iterate through groups and add sections
         for group_name, actions in self._action_groups.items():
             # Filter to only show actions that exist in entries
             actions_to_show = [a for a in actions if a in self._entries]
+            readonly_items = self._get_group_readonly_items(group_name, group)
             
             # Add group heading (show all groups, even if empty)
             heading = wx.StaticText(self._options, label=group_name.replace("_", " ").title())
@@ -479,7 +506,7 @@ class KeyConfig(wx.BoxSizer):
             # Try to add group description if it exists
             description_key = f"key_config.group_description.{group_name}"
             description_text = lang.get(description_key)
-            if description_text != description_key:  # If not the key itself, we have a valid translation
+            if self._show_descriptions and description_text != description_key:  # If not the key itself, we have a valid translation
                 description = wx.StaticText(self._options, label=description_text)
                 description_font = description.GetFont()
                 description_font.SetStyle(wx.FONTSTYLE_ITALIC)
@@ -488,20 +515,49 @@ class KeyConfig(wx.BoxSizer):
                 main_sizer.Add(description, 0, wx.ALL | wx.EXPAND, 5)
             
             # Add grid for this group if it has actions
-            if actions_to_show:
-                grid_sizer = wx.GridSizer(len(actions_to_show), 2, 5, 5)
+            if actions_to_show or readonly_items:
+                grid_sizer = wx.FlexGridSizer(0, 2, 5, 5)
                 for action in actions_to_show:
-                    grid_sizer.Add(
-                        wx.StaticText(
-                            self._options, label=lang.get(f"action.{action.lower()}")
-                        ),
-                        0,
-                        wx.ALIGN_CENTER,
-                    )
                     self._key_buttons[action] = button = wx.Button(self._options)
                     button.SetLabel(stringify_key(group.get(action, ((), "NONE"))))
+                    button.SetMinSize((170, -1))
                     button.Bind(wx.EVT_BUTTON, lambda evt, a=action: self._modify_button(a))
-                    grid_sizer.Add(button, 0, wx.EXPAND)
+                    grid_sizer.Add(
+                        button,
+                        0,
+                        wx.ALIGN_RIGHT | wx.ALIGN_CENTER_VERTICAL | wx.RIGHT,
+                        12,
+                    )
+                    label = wx.StaticText(
+                        self._options, label=lang.get(f"action.{action.lower()}"), style=wx.ALIGN_LEFT
+                    )
+                    grid_sizer.Add(
+                        label,
+                        0,
+                        wx.ALIGN_LEFT | wx.ALIGN_CENTER_VERTICAL | wx.LEFT,
+                        12,
+                    )
+
+                for label_text, hotkey_text in readonly_items:
+                    hotkey_label = wx.StaticText(self._options, label=hotkey_text)
+                    hotkey_font = hotkey_label.GetFont()
+                    hotkey_font = hotkey_font.Bold()
+                    hotkey_label.SetFont(hotkey_font)
+                    grid_sizer.Add(
+                        hotkey_label,
+                        0,
+                        wx.ALIGN_RIGHT | wx.ALIGN_CENTER_VERTICAL | wx.RIGHT,
+                        12,
+                    )
+                    readonly_label = wx.StaticText(
+                        self._options, label=label_text, style=wx.ALIGN_LEFT
+                    )
+                    grid_sizer.Add(
+                        readonly_label,
+                        0,
+                        wx.ALIGN_LEFT | wx.ALIGN_CENTER_VERTICAL | wx.LEFT,
+                        12,
+                    )
                 
                 main_sizer.Add(grid_sizer, 0, wx.ALL | wx.EXPAND, 5)
             else:
@@ -514,13 +570,40 @@ class KeyConfig(wx.BoxSizer):
             
             # Add spacing between groups
             main_sizer.Add(wx.StaticLine(self._options), 0, wx.EXPAND | wx.ALL, 5)
-
-        self._add_misc_hotkeys(main_sizer)
         
         self._options.Layout()
 
+    def _get_group_readonly_items(self, group_name: str, group: KeybindGroup):
+        if group_name == "navigation":
+            return [
+                (lang.get("program_3d_edit.menu_bar.navigation.goto"), "Ctrl+G"),
+            ]
+        elif group_name == "select_mode":
+            return [
+                (lang.get("program_3d_edit.menu_bar.edit.cut"), "Ctrl+X"),
+                (lang.get("program_3d_edit.menu_bar.edit.copy"), "Ctrl+C"),
+                (lang.get("program_3d_edit.select_tool.delete_button"), "Delete"),
+                (lang.get("program_3d_edit.menu_bar.edit.select_all"), "Ctrl+A"),
+            ]
+        elif group_name == "cursor":
+            # Add rotation controls that dynamically show Alt + camera look keys
+            rotation_items = []
+            look_actions = [
+                ("ACT_LOOK_UP", "Rotate Selection Up"),
+                ("ACT_LOOK_DOWN", "Rotate Selection Down"),
+                ("ACT_LOOK_LEFT", "Rotate Selection Left"),
+                ("ACT_LOOK_RIGHT", "Rotate Selection Right"),
+            ]
+            for action, description in look_actions:
+                if action in group:
+                    key_binding = group[action]
+                    # Format as Alt + [key]
+                    rotation_items.append((description, stringify_key(key_binding)))
+            return rotation_items
+        return []
+
     def _add_misc_hotkeys(self, main_sizer: wx.BoxSizer):
-        heading = wx.StaticText(self._options, label="Misc")
+        heading = wx.StaticText(self._options, label="Common")
         font = heading.GetFont()
         font.PointSize += 2
         font = font.Bold()
@@ -529,60 +612,44 @@ class KeyConfig(wx.BoxSizer):
         misc_hotkeys = [
             (lang.get("menu_bar.file.open_world"), "Ctrl+O"),
             (lang.get("program_3d_edit.menu_bar.file.save"), "Ctrl+S"),
+            ("Save All", "Ctrl+Shift+S"),
+            ("Next Tab in Current World", "Ctrl+Shift+Page Down"),
+            ("Previous Tab in Current World", "Ctrl+Shift+Page Up"),
+            ("Next World", "Ctrl+Page Down"),
+            ("Previous World", "Ctrl+Page Up"),
             (lang.get("program_3d_edit.menu_bar.file.preferences"), "Ctrl+P"),
-            (lang.get("program_3d_edit.menu_bar.options.controls"), "Ctrl+L"),
-            (lang.get("program_3d_edit.menu_bar.options.camera"), "Ctrl+M"),
+            (lang.get("program_3d_edit.menu_bar.options.keyboard_controls"), "Ctrl+K"),
+            (lang.get("program_3d_edit.menu_bar.options.mouse_control"), "Ctrl+M"),
+            (lang.get("program_3d_edit.menu_bar.options.camera"), "Ctrl+I"),
             (lang.get("program_3d_edit.menu_bar.edit.undo"), "Ctrl+Z"),
             (lang.get("program_3d_edit.menu_bar.edit.redo"), "Ctrl+Y"),
-            (lang.get("program_3d_edit.menu_bar.edit.cut"), "Ctrl+X"),
-            (lang.get("program_3d_edit.menu_bar.edit.copy"), "Ctrl+C"),
             (lang.get("program_3d_edit.menu_bar.edit.paste"), "Ctrl+V"),
-            (lang.get("program_3d_edit.menu_bar.edit.delete"), "Delete"),
-            (lang.get("program_3d_edit.menu_bar.edit.goto"), "Ctrl+G"),
-            (lang.get("program_3d_edit.menu_bar.edit.select_all"), "Ctrl+A"),
         ]
 
         grid_sizer = wx.FlexGridSizer(len(misc_hotkeys), 2, 5, 10)
         for label, hotkey in misc_hotkeys:
             # Strip ellipsis (...) from menu labels in this static display
             display_label = label.replace("...", "")
-            label_text = wx.StaticText(self._options, label=display_label)
-            grid_sizer.Add(
-                label_text,
-                0,
-                wx.ALIGN_CENTER_VERTICAL,
-            )
             hotkey_label = wx.StaticText(self._options, label=hotkey)
             hotkey_font = hotkey_label.GetFont()
             hotkey_font = hotkey_font.Bold()
             hotkey_label.SetFont(hotkey_font)
-            grid_sizer.Add(hotkey_label, 0, wx.ALIGN_CENTER_VERTICAL | wx.ALIGN_RIGHT)
+            grid_sizer.Add(
+                hotkey_label,
+                0,
+                wx.ALIGN_LEFT | wx.ALIGN_CENTER_VERTICAL | wx.RIGHT,
+                12,
+            )
+            label_text = wx.StaticText(self._options, label=display_label, style=wx.ALIGN_LEFT)
+            grid_sizer.Add(
+                label_text,
+                0,
+                wx.ALIGN_LEFT | wx.ALIGN_CENTER_VERTICAL | wx.LEFT,
+                12,
+            )
 
-        philosophy_text = lang.get("key_config.philosophy")
-        philosophy_label = wx.StaticText(
-            self._options, label=philosophy_text, style=wx.ALIGN_LEFT
-        )
-        philosophy_label.Wrap(420)
-
-        # Left half: Misc heading and grid (centered)
-        left_sizer = wx.BoxSizer(wx.VERTICAL)
-        left_sizer.Add(heading, 0, wx.LEFT, 5)
-        left_sizer.AddStretchSpacer()
-        left_sizer.Add(grid_sizer, 0, wx.ALIGN_CENTER_HORIZONTAL)
-        left_sizer.AddStretchSpacer()
-
-        # Right half: Philosophy text (centered)
-        right_sizer = wx.BoxSizer(wx.VERTICAL)
-        right_sizer.AddStretchSpacer()
-        right_sizer.Add(philosophy_label, 0, wx.ALIGN_CENTER_HORIZONTAL | wx.ALL, 20)
-        right_sizer.AddStretchSpacer()
-
-        # Combine left and right halves
-        content_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        content_sizer.Add(left_sizer, 1, wx.EXPAND)
-        content_sizer.Add(right_sizer, 1, wx.EXPAND)
-
-        main_sizer.Add(content_sizer, 0, wx.ALL | wx.EXPAND, 5)
+        main_sizer.Add(heading, 0, wx.LEFT | wx.BOTTOM, 5)
+        main_sizer.Add(grid_sizer, 0, wx.ALL, 5)
 
     def _rebuild_ungrouped_options(self, group):
         """Rebuild options panel without grouping (original behavior)."""
@@ -590,20 +657,28 @@ class KeyConfig(wx.BoxSizer):
         self._options.sizer.Clear(True)
         self._key_buttons.clear()
         
-        grid_sizer = wx.GridSizer(len(self._entries), 2, 5, 5)
+        grid_sizer = wx.FlexGridSizer(len(self._entries), 2, 5, 5)
         self._options.sizer.Add(grid_sizer, 0, wx.ALL | wx.EXPAND, 5)
         for action in self._entries:
-            grid_sizer.Add(
-                wx.StaticText(
-                    self._options, label=lang.get(f"action.{action.lower()}")
-                ),
-                0,
-                wx.ALIGN_CENTER,
-            )
             self._key_buttons[action] = button = wx.Button(self._options)
             button.SetLabel(stringify_key(group.get(action, ((), "NONE"))))
+            button.SetMinSize((170, -1))
             button.Bind(wx.EVT_BUTTON, lambda evt, a=action: self._modify_button(a))
-            grid_sizer.Add(button, 0, wx.EXPAND)
+            grid_sizer.Add(
+                button,
+                0,
+                wx.ALIGN_RIGHT | wx.ALIGN_CENTER_VERTICAL | wx.RIGHT,
+                12,
+            )
+            label = wx.StaticText(
+                self._options, label=lang.get(f"action.{action.lower()}"), style=wx.ALIGN_LEFT
+            )
+            grid_sizer.Add(
+                label,
+                0,
+                wx.ALIGN_LEFT | wx.ALIGN_CENTER_VERTICAL | wx.LEFT,
+                12,
+            )
         
         self._options.Layout()
 
@@ -665,6 +740,16 @@ class KeyConfig(wx.BoxSizer):
         self._user_keybinds[group_name] = group.copy()
         self._rebuild_choice(group_name)
 
+    def _is_mouse_key(self, key: SerialisedKeyType) -> bool:
+        """Check if a key binding includes a mouse action."""
+        _, key_value = key
+        mouse_keys = {
+            MouseLeft, MouseMiddle, MouseRight,
+            MouseAux1, MouseAux2,
+            MouseWheelScrollUp, MouseWheelScrollDown
+        }
+        return key_value in mouse_keys
+
     def _modify_button(self, action):
         if self._choice.GetCurrentString() in self._fixed_keybinds:
             msg = wx.MessageDialog(
@@ -678,10 +763,38 @@ class KeyConfig(wx.BoxSizer):
                 return
         group_name = self._choice.GetCurrentString()
         if group_name in self._user_keybinds:
-            catcher = KeyCatcher(self._options, action)
-            catcher.ShowModal()
-            self._user_keybinds[group_name][action] = catcher.key
-            self._rebuild_buttons()
+            while True:
+                catcher = KeyCatcher(self._options, action)
+                catcher.ShowModal()
+                key = catcher.key
+                
+                # Validate the key based on mode
+                is_mouse = self._is_mouse_key(key)
+                if self._require_mouse_action is False and is_mouse:
+                    # Keyboard controls: mouse actions not allowed
+                    msg = wx.MessageDialog(
+                        self._options,
+                        "Keyboard controls cannot use mouse buttons or wheel.\nPlease press a keyboard key.",
+                        "Invalid Key",
+                        style=wx.OK | wx.ICON_ERROR,
+                    )
+                    msg.ShowModal()
+                    continue
+                elif self._require_mouse_action is True and not is_mouse:
+                    # Mouse controls: must include mouse action
+                    msg = wx.MessageDialog(
+                        self._options,
+                        "Mouse controls must include a mouse button or wheel action.\n(Keyboard modifiers like Ctrl, Shift, Alt are optional)",
+                        "Invalid Key",
+                        style=wx.OK | wx.ICON_ERROR,
+                    )
+                    msg.ShowModal()
+                    continue
+                
+                # Key is valid
+                self._user_keybinds[group_name][action] = key
+                self._rebuild_buttons()
+                break
 
     def _on_group_change(self, evt):
         self._rebuild_buttons()

@@ -13,6 +13,7 @@ from amulet_map_editor.programs.edit.api.events import (
     EVT_DIMENSION_CHANGE,
     DimensionChangeEvent,
     EditCloseEvent,
+    ToolChangeEvent,
 )
 from amulet_map_editor.api import image, lang
 from amulet_map_editor.api.opengl.camera import Projection
@@ -103,6 +104,12 @@ class FilePanel(EditCanvasContainer):
 
         self._button_sizer.Add(self._dim_options)
 
+        # Mode selection dropdown (F1-F10 tools)
+        self._mode_choice = SimpleChoiceAny(self._button_window, sort=False)
+        self._mode_choice.SetToolTip("Select editing mode (F1-F10)")
+        self._mode_choice.Bind(wx.EVT_CHOICE, self._on_mode_choice)
+        self._button_sizer.Add(self._mode_choice, 0, wx.ALIGN_CENTER_VERTICAL)
+
         self._button_sizer.AddSpacer(8)
 
         def create_button(text, operation):
@@ -135,6 +142,28 @@ class FilePanel(EditCanvasContainer):
         if dimension is not None:
             self.canvas.dimension = dimension
         evt.Skip()
+
+    def _on_mode_choice(self, evt):
+        """Handle mode selection from the dropdown."""
+        selection = self._mode_choice.GetCurrentObject()
+        if selection:
+            tool_name, state_name = selection
+            state = None
+            if state_name and state_name != "None":
+                state = {"operation_name": state_name}
+            wx.PostEvent(self.canvas, ToolChangeEvent(tool=tool_name, state=state))
+        evt.Skip()
+
+    def set_mode_choice_items(self, items):
+        """Set the available items in the mode choice dropdown."""
+        self._mode_choice.SetItems(items)
+
+    def update_mode_choice_selection(self, tool_name: str, state_name):
+        """Update the dropdown to reflect the current tool/state."""
+        target_tuple = (tool_name, state_name)
+        if target_tuple in self._mode_choice.values:
+            idx = self._mode_choice.values.index(target_tuple)
+            self._mode_choice.SetSelection(idx)
 
     def _on_projection_change(self, evt):
         if self.canvas.camera.projection_mode == Projection.PERSPECTIVE:

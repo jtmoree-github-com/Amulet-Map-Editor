@@ -68,12 +68,80 @@ class AmuletUI(wx.Frame):
 
         self._level_notebook = AmuletLevelNotebook(self, agwStyle=NOTEBOOK_MENU_STYLE)
         self._level_notebook.init()
+        self.Layout()
 
         self.Bind(wx.EVT_CLOSE, self._level_notebook.on_app_close)
+        
+        # Set up accelerator table for global hotkeys
+        self._setup_accelerators()
 
     def open_level(self, path: str):
         """Open a level. You should use the method in the app."""
         self._level_notebook.open_level(path)
+
+    def _setup_accelerators(self):
+        """Setup global keyboard accelerators for tab navigation."""
+        # Use fixed IDs for reliability
+        ID_CTRL_PAGEDOWN = 10001
+        ID_CTRL_PAGEUP = 10002
+        ID_CTRL_SHIFT_PAGEDOWN = 10003
+        ID_CTRL_SHIFT_PAGEUP = 10004
+        
+        acc_entries = [
+            wx.AcceleratorEntry(wx.ACCEL_CTRL, wx.WXK_PAGEDOWN, ID_CTRL_PAGEDOWN),
+            wx.AcceleratorEntry(wx.ACCEL_CTRL, wx.WXK_PAGEUP, ID_CTRL_PAGEUP),
+            wx.AcceleratorEntry(wx.ACCEL_CTRL | wx.ACCEL_SHIFT, wx.WXK_PAGEDOWN, ID_CTRL_SHIFT_PAGEDOWN),
+            wx.AcceleratorEntry(wx.ACCEL_CTRL | wx.ACCEL_SHIFT, wx.WXK_PAGEUP, ID_CTRL_SHIFT_PAGEUP),
+        ]
+        
+        accel_table = wx.AcceleratorTable(acc_entries)
+        self.SetAcceleratorTable(accel_table)
+        
+        # Bind the accelerator events
+        self.Bind(wx.EVT_MENU, self._on_accel_ctrl_pagedown, id=ID_CTRL_PAGEDOWN)
+        self.Bind(wx.EVT_MENU, self._on_accel_ctrl_pageup, id=ID_CTRL_PAGEUP)
+        self.Bind(wx.EVT_MENU, self._on_accel_ctrl_shift_pagedown, id=ID_CTRL_SHIFT_PAGEDOWN)
+        self.Bind(wx.EVT_MENU, self._on_accel_ctrl_shift_pageup, id=ID_CTRL_SHIFT_PAGEUP)
+    
+    def _on_accel_ctrl_pagedown(self, evt):
+        """Handle Ctrl+PageDown - next world."""
+        self._navigate_notebooks(1)
+    
+    def _on_accel_ctrl_pageup(self, evt):
+        """Handle Ctrl+PageUp - previous world."""
+        self._navigate_notebooks(-1)
+    
+    def _on_accel_ctrl_shift_pagedown(self, evt):
+        """Handle Ctrl+Shift+PageDown - next tab in current world."""
+        self._navigate_world_tabs(1)
+    
+    def _on_accel_ctrl_shift_pageup(self, evt):
+        """Handle Ctrl+Shift+PageUp - previous tab in current world."""
+        self._navigate_world_tabs(-1)
+    
+    def _navigate_world_tabs(self, direction):
+        """Navigate tabs within the current world (1 for next, -1 for prev)."""
+        current_page = self._level_notebook.GetSelection()
+        if current_page == wx.NOT_FOUND:
+            return
+        
+        current_tab = self._level_notebook.GetPage(current_page)
+        
+        # Check if current tab is a WorldPageUI
+        if isinstance(current_tab, WorldPageUI):
+            page_count = current_tab.GetPageCount()
+            if page_count > 1:
+                selection = current_tab.GetSelection()
+                next_page = (selection + direction) % page_count
+                current_tab.SetSelection(next_page)
+    
+    def _navigate_notebooks(self, direction):
+        """Navigate between worlds and main menu (1 for next, -1 for prev)."""
+        page_count = self._level_notebook.GetPageCount()
+        if page_count > 1:
+            selection = self._level_notebook.GetSelection()
+            next_page = (selection + direction) % page_count
+            self._level_notebook.SetSelection(next_page)
 
     def open_world_select_tab(self):
         """Open the world selector as a tab. You should use the method in the app."""

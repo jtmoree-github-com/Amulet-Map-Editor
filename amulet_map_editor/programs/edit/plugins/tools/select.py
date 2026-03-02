@@ -34,6 +34,10 @@ from amulet_map_editor.programs.edit.api.key_config import (
     ACT_CURSOR_BACKWARDS,
     ACT_CURSOR_LEFT,
     ACT_CURSOR_RIGHT,
+    ACT_LOOK_UP,
+    ACT_LOOK_DOWN,
+    ACT_LOOK_LEFT,
+    ACT_LOOK_RIGHT,
     ACT_TOGGLE_MOVE_TARGET,
     ACT_TOGGLE_WASD_MODE,
     ACT_MOVE_UP,
@@ -419,6 +423,15 @@ class SelectTool(wx.BoxSizer, DefaultBaseToolUI):
             self._toggle_move_target()
         elif evt.action_id == ACT_TOGGLE_WASD_MODE:
             self.canvas.wasd_moves_cursor = not self.canvas.wasd_moves_cursor
+        elif self.canvas.wasd_moves_cursor:
+            if evt.action_id == ACT_LOOK_UP:
+                self._rotate_selection_box("x", 1)
+            elif evt.action_id == ACT_LOOK_DOWN:
+                self._rotate_selection_box("x", -1)
+            elif evt.action_id == ACT_LOOK_LEFT:
+                self._rotate_selection_box("y", -1)
+            elif evt.action_id == ACT_LOOK_RIGHT:
+                self._rotate_selection_box("y", 1)
         evt.Skip()
 
     def _toggle_move_target(self):
@@ -521,6 +534,56 @@ class SelectTool(wx.BoxSizer, DefaultBaseToolUI):
             y2 + oy,
             z2 + oz,
         )
+
+    def _rotate_selection_box(self, axis: str, direction: int):
+        p1, p2 = self._selection.active_block_positions
+
+        min_block = numpy.array((
+            min(p1[0], p2[0]),
+            min(p1[1], p2[1]),
+            min(p1[2], p2[2]),
+        ), dtype=float)
+        max_block = numpy.array((
+            max(p1[0], p2[0]),
+            max(p1[1], p2[1]),
+            max(p1[2], p2[2]),
+        ), dtype=float)
+
+        min_corner = min_block
+        max_corner = max_block + 1
+        center = (min_corner + max_corner) / 2
+
+        corners = numpy.array(
+            [
+                [x, y, z]
+                for x in (min_corner[0], max_corner[0])
+                for y in (min_corner[1], max_corner[1])
+                for z in (min_corner[2], max_corner[2])
+            ],
+            dtype=float,
+        )
+        rel = corners - center
+
+        if axis == "x":
+            if direction > 0:
+                rel = numpy.column_stack((rel[:, 0], rel[:, 2], -rel[:, 1]))
+            else:
+                rel = numpy.column_stack((rel[:, 0], -rel[:, 2], rel[:, 1]))
+        elif axis == "y":
+            if direction > 0:
+                rel = numpy.column_stack((rel[:, 2], rel[:, 1], -rel[:, 0]))
+            else:
+                rel = numpy.column_stack((-rel[:, 2], rel[:, 1], rel[:, 0]))
+        else:
+            return
+
+        rotated = rel + center
+        new_min_corner = numpy.rint(rotated.min(axis=0)).astype(int)
+        new_max_corner = numpy.rint(rotated.max(axis=0)).astype(int)
+
+        new_p1 = tuple(new_min_corner.tolist())
+        new_p2 = tuple((new_max_corner - 1).tolist())
+        self._selection.active_block_positions = new_p1, new_p2
 
     def _on_resize(self, evt):
         self._resize()

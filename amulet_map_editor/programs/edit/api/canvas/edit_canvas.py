@@ -2,6 +2,7 @@ import logging
 import warnings
 import wx
 import math
+import webbrowser
 from typing import Callable, TYPE_CHECKING, Any, Generator, Optional
 from types import GeneratorType
 from threading import RLock, Thread
@@ -14,6 +15,8 @@ from ..key_config import (
     PresetKeybinds,
     KeybindGroup,
     ACT_PASTE,
+    ACT_HELP,
+    ACT_SAVE_ALL,
     ACT_SWITCH_TO_SELECT_MODE,
     ACT_SWITCH_TO_PASTE_MODE,
     ACT_SWITCH_TO_FILL_MODE,
@@ -212,7 +215,11 @@ class EditCanvas(BaseEditCanvas):
         self.Bind(EVT_EDIT_CLOSE, self._on_close)
 
     def _on_input_press(self, evt: InputPressEvent):
-        if evt.action_id == ACT_PASTE:
+        if evt.action_id == ACT_HELP:
+            webbrowser.open(
+                "https://github.com/Amulet-Team/Amulet-Map-Editor/blob/master/amulet_map_editor/programs/edit/readme.md"
+            )
+        elif evt.action_id == ACT_PASTE:
             # If already in paste mode, paste from cache. Otherwise, switch to paste mode.
             if isinstance(self._tool_sizer._active_tool, PasteTool):
                 self.paste_from_cache()
@@ -246,6 +253,8 @@ class EditCanvas(BaseEditCanvas):
                 parent.ShowFullScreen(True)
         elif evt.action_id == ACT_MOVE_CAMERA_TO_CURSOR:
             self._move_camera_to_selection_cursor()
+        elif evt.action_id == ACT_SAVE_ALL:
+            self._save_all_worlds()
         evt.Skip()
 
     def _move_camera_to_selection_cursor(self):
@@ -273,6 +282,35 @@ class EditCanvas(BaseEditCanvas):
         camera_z = target_z - forward_z * standoff_distance
 
         self.camera.location = (camera_x, camera_y, camera_z)
+
+    def _save_all_worlds(self):
+        """Save all open worlds in the notebook."""
+        # Navigate up the widget hierarchy to find the notebook
+        # EditCanvas -> EditExtension -> WorldPageUI -> AmuletLevelNotebook -> AmuletUI
+        parent = self.GetParent()  # EditExtension
+        if parent is None:
+            return
+        
+        parent = parent.GetParent()  # WorldPageUI
+        if parent is None:
+            return
+        
+        parent = parent.GetParent()  # AmuletLevelNotebook
+        if parent is None:
+            return
+        
+        # Check if parent has _open_worlds attribute
+        if not hasattr(parent, '_open_worlds'):
+            return
+        
+        # Iterate through all open worlds and save their Edit extensions
+        for path, world_page in parent._open_worlds.items():
+            # world_page is a WorldPageUI; iterate through its extensions
+            for page_index in range(world_page.GetPageCount()):
+                extension = world_page.GetPage(page_index)
+                # Check if this is an EditExtension with a canvas
+                if hasattr(extension, '_canvas') and extension._canvas is not None:
+                    extension._canvas.save()
 
     def enable(self):
         super().enable()

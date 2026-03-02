@@ -27,7 +27,7 @@ class ControllableCamera(Camera):
     def __init__(self, canvas: glcanvas.GLCanvas):
         super().__init__(canvas)
         self._move_speed = 2.0
-        self._rotate_speed = 2.0
+        self._rotate_speed = 6.0
         self._rotating = False
 
     @property
