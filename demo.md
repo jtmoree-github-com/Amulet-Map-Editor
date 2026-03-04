@@ -140,10 +140,10 @@ This script demonstrates the UI and UX improvements made to the Amulet Map Edito
 - Paste Blocks with Confirm
 
 **Narration:**
-"I added a hotkey of Ctrl+Spacebar that moves the camera to the cursor."
+"I added a hotkey of Ctrl+Shift+G that moves the camera to the cursor."
 
 **Action:**
-- Ctrl+Spacebar to jump camera to cursor location
+- Ctrl+Shift+G to jump camera to cursor location
 
 **Narration:**
 "In Stock Amulet there is a button to toggle the move keys from camera to cursor.  In this version of Amulet there is a button in the navigation bar to toggle the setting on and off.  This applies to almost all Modes.  copy, paste, chunk all use the same button."
@@ -188,7 +188,7 @@ To navigate the main window using only the keyboard. There are tabs on top which
 - Press F2 to switch to Select mode
 - Use E, X to move up/down
 - Move way up into the air
-- Ctrl+Spacebar again
+- Ctrl+Shift+G again
 
 **Narration:**
 "The cursor is highlighting just one block.  In this version of Amulet I use a hotkey of Alt+T to toggle the movement of camera or cursor."
@@ -374,7 +374,7 @@ Use this checklist to ensure you capture all necessary shots for the demo video.
 - [ ] **Shot 6k:** Press F2 for Select mode
 - [ ] **Shot 6l:** Use E and X keys to move camera up/down (show movement)
 - [ ] **Shot 6m:** Move up high into the air
-- [ ] **Shot 6n:** Press Ctrl+Spacebar to jump to cursor
+- [ ] **Shot 6n:** Press Ctrl+Shift+G to jump to cursor
 - [ ] **Shot 6o:** Use WASD to move camera
 - [ ] **Shot 6p:** Press Alt+T to toggle cursor movement mode
 - [ ] **Shot 6q:** Use WASD to move cursor instead of camera
