@@ -1,10 +1,19 @@
 import wx
 from typing import Set, Dict, Tuple
+import logging
 
 from .window_container import WindowContainer
-from .key_config import KeyType, serialise_key, KeybindGroup, Control, Shift, Alt
+from .key_config import (
+    KeyType,
+    serialise_key,
+    KeybindGroup,
+    Control,
+    Shift,
+    Alt,
+)
 
 ActionIDType = str
+log = logging.getLogger(__name__)
 
 # Define the set of modifier keys
 MODIFIER_KEYS = {Control, Shift, Alt}
@@ -92,7 +101,7 @@ class ButtonInput(WindowContainer):
     def __init__(self, window: wx.Window):
         super().__init__(window)
 
-        self._registered_actions: Dict[ActionIDType, Action] = {}
+        self._registered_actions: Dict[ActionIDType, Tuple[Action, ...]] = {}
 
         self._pressed_keys: Set[KeyType] = set()
 
@@ -185,6 +194,8 @@ class ButtonInput(WindowContainer):
         """
         if not isinstance(action_id, str):
             raise TypeError("action_id must be a string.")
+        if isinstance(modifier_keys, list):
+            modifier_keys = tuple(modifier_keys)
         if (
             not isinstance(trigger_key, (str, int))
             or not isinstance(modifier_keys, tuple)
@@ -193,13 +204,23 @@ class ButtonInput(WindowContainer):
             raise TypeError(
                 "The key inputs are not of the correct format. Expected Union[str, int], Tuple[Union[str, int], ...]"
             )
+        action = Action(trigger_key, modifier_keys)
         if self.action_id_registered(action_id):
-            raise ValueError(f"{action_id} has already been registered.")
-        self._registered_actions[action_id] = Action(trigger_key, modifier_keys)
+            self._registered_actions[action_id] = self._registered_actions[action_id] + (action,)
+        else:
+            self._registered_actions[action_id] = (action,)
 
     def register_actions(self, actions: KeybindGroup):
-        for action_id, (modifier_keys, trigger_key) in actions.items():
-            self.register_action(action_id, modifier_keys, trigger_key)
+        for action_id, keybind in actions.items():
+            try:
+                modifier_keys, trigger_key = keybind
+                self.register_action(action_id, modifier_keys, trigger_key)
+            except TypeError:
+                log.warning(
+                    "Skipping invalid keybind for action %s: %r",
+                    action_id,
+                    keybind,
+                )
 
     def _find_actions(self, key: KeyType) -> Tuple[ActionIDType, ...]:
         """A method to find all actions triggered by `key` with the modifier keys also pressed."""
@@ -208,10 +229,13 @@ class ButtonInput(WindowContainer):
         
         return tuple(
             action_id
-            for action_id, action in self._registered_actions.items()
-            if action.trigger_key == key
-            and action.modifier_keys.issubset(self._pressed_keys)
-            and action.modifier_keys == pressed_modifiers  # Exact modifier match
+            for action_id, action_bindings in self._registered_actions.items()
+            if any(
+                action.trigger_key == key
+                and action.modifier_keys.issubset(self._pressed_keys)
+                and action.modifier_keys == pressed_modifiers  # Exact modifier match
+                for action in action_bindings
+            )
         )
 
     def _press(self, evt):
@@ -233,7 +257,7 @@ class ButtonInput(WindowContainer):
             if action_ids and Alt in self._pressed_keys:
                 # If any action uses Alt as a modifier, don't skip to prevent menu activation
                 for action_id in action_ids:
-                    if Alt in self._registered_actions[action_id].modifier_keys:
+                    if any(Alt in action.modifier_keys for action in self._registered_actions[action_id]):
                         skip_event = False
                         break
             
@@ -257,8 +281,9 @@ class ButtonInput(WindowContainer):
     def _clean_up_actions(self):
         # find all actions that are now not valid and remove them
         for action_id in list(self._continuous_actions):
-            if not self._registered_actions[action_id].required_keys.issubset(
-                self._pressed_keys
+            if not any(
+                action.required_keys.issubset(self._pressed_keys)
+                for action in self._registered_actions[action_id]
             ):
                 self._continuous_actions.remove(action_id)
                 wx.PostEvent(self.window, InputReleaseEvent(action_id))

@@ -29,6 +29,12 @@ from ..key_config import (
     ACT_SWITCH_TO_CHUNK_MODE,
     ACT_TOGGLE_FULLSCREEN,
     ACT_MOVE_CAMERA_TO_CURSOR,
+    ACT_INCR_SPEED,
+    ACT_DECR_SPEED,
+    ACT_ZOOM_IN,
+    ACT_ZOOM_OUT,
+    DOT,
+    COMMA,
 )
 
 import time
@@ -171,6 +177,10 @@ class EditCanvas(BaseEditCanvas):
         self._file_panel: Optional[FilePanel] = None
         self._tool_sizer: Optional[ToolManagerSizer] = None
         self.buttons.register_actions(self.key_binds)
+        self.buttons.register_action(ACT_INCR_SPEED, tuple(), DOT)
+        self.buttons.register_action(ACT_DECR_SPEED, tuple(), COMMA)
+        self.buttons.register_action(ACT_ZOOM_IN, tuple(), DOT)
+        self.buttons.register_action(ACT_ZOOM_OUT, tuple(), COMMA)
 
         self._canvas_sizer = wx.BoxSizer(wx.VERTICAL)
         self.SetSizer(self._canvas_sizer)

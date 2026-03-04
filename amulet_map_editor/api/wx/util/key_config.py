@@ -3,7 +3,7 @@ from amulet_map_editor.api import lang
 from amulet_map_editor.api.wx.ui.simple import (
     SimpleDialog,
     SimpleScrollablePanel,
-    SimpleChoice,
+    SimpleChoiceAny,
 )
 from typing import Dict, Tuple, Optional, Union, Sequence
 
@@ -18,6 +18,11 @@ SerialisedKeyType = Tuple[ModifierType, KeyType]
 KeybindGroup = Dict[KeyActionType, SerialisedKeyType]
 ActionLookupType = Dict[SerialisedKeyType, KeyActionType]
 KeybindContainer = Dict[KeybindGroupIdType, KeybindGroup]
+
+PRESET_GROUP_LABELS: Dict[str, str] = {
+    "right": "right_hand_mouse",
+    "left": "left_hand_mouse",
+}
 
 MouseLeft = "MOUSE_LEFT"
 MouseMiddle = "MOUSE_MIDDLE"
@@ -422,11 +427,8 @@ class KeyConfig(wx.BoxSizer):
 
         top_sizer = wx.BoxSizer(wx.HORIZONTAL)
         self.Add(top_sizer, 0, wx.EXPAND)
-        self._choice = SimpleChoice(
-            parent,
-            list(self._fixed_keybinds.keys()) + list(self._user_keybinds.keys()),
-            selected_group,
-        )
+        self._choice = SimpleChoiceAny(parent, sort=False)
+        self._choice.SetItems(self._choice_items(), selected_group)
         self._choice.Bind(wx.EVT_CHOICE, self._on_group_change)
         top_sizer.Add(self._choice, 1, wx.ALL | wx.EXPAND, 5)
 
@@ -450,7 +452,7 @@ class KeyConfig(wx.BoxSizer):
         self._rebuild_buttons()
 
     def _rebuild_buttons(self):
-        group_id = self._choice.GetCurrentString()
+        group_id = self._current_group_id()
         if group_id in self._fixed_keybinds:
             group = self._fixed_keybinds[group_id]
             self._delete.Disable()
@@ -467,6 +469,20 @@ class KeyConfig(wx.BoxSizer):
             self._rebuild_grouped_options(group, editable)
         else:
             self._rebuild_ungrouped_options(group, editable)
+
+    def _choice_items(self) -> Dict[str, str]:
+        items: Dict[str, str] = {}
+        for group_id in self._fixed_keybinds.keys():
+            items[group_id] = PRESET_GROUP_LABELS.get(group_id, group_id)
+        for group_id in self._user_keybinds.keys():
+            items[group_id] = group_id
+        return items
+
+    def _current_group_id(self) -> str:
+        group_id = self._choice.GetCurrentObject()
+        if isinstance(group_id, str):
+            return group_id
+        return self._choice.GetCurrentString()
 
     def _rebuild_grouped_options(self, group, editable: bool):
         """Rebuild options panel with section headings and grouped actions."""
@@ -717,17 +733,15 @@ class KeyConfig(wx.BoxSizer):
 
     def _rebuild_choice(self, group_name=None):
         index = self._choice.GetSelection()
-        self._choice.SetItems(
-            list(self._fixed_keybinds.keys()) + list(self._user_keybinds.keys())
-        )
+        self._choice.SetItems(self._choice_items(), group_name)
         if group_name is not None:
-            self._choice.SetSelection(self._choice.FindString(group_name))
+            pass
         else:
             self._choice.SetSelection(max(index - 1, 0))
         self._rebuild_buttons()
 
     def _delete_group(self):
-        group = self._choice.GetCurrentString()
+        group = self._current_group_id()
         if group in self._user_keybinds:
             del self._user_keybinds[group]
             self._rebuild_choice()
@@ -750,7 +764,7 @@ class KeyConfig(wx.BoxSizer):
         return group_name
 
     def _rename_group(self):
-        old_group_name = self._choice.GetCurrentString()
+        old_group_name = self._current_group_id()
         if old_group_name in self._user_keybinds:
             group_name = self._request_group_name()
             if group_name is None:
@@ -764,7 +778,7 @@ class KeyConfig(wx.BoxSizer):
         group_name = self._request_group_name()
         if group_name is None:
             return
-        old_group_name = self._choice.GetCurrentString()
+        old_group_name = self._current_group_id()
         if old_group_name in self._fixed_keybinds:
             group = self._fixed_keybinds[old_group_name]
         else:
@@ -795,7 +809,7 @@ class KeyConfig(wx.BoxSizer):
         return key_value in mouse_keys
 
     def _modify_button(self, action):
-        if self._choice.GetCurrentString() in self._fixed_keybinds:
+        if self._current_group_id() in self._fixed_keybinds:
             msg = wx.MessageDialog(
                 self._options,
                 lang.get("key_config.active_not_editable"),
@@ -805,7 +819,7 @@ class KeyConfig(wx.BoxSizer):
                 self._create_new_group()
             else:
                 return
-        group_name = self._choice.GetCurrentString()
+        group_name = self._current_group_id()
         if group_name in self._user_keybinds:
             while True:
                 catcher = KeyCatcher(self._options, action)
@@ -845,7 +859,7 @@ class KeyConfig(wx.BoxSizer):
 
     @property
     def options(self) -> Tuple[KeybindContainer, KeybindGroupIdType, KeybindGroup]:
-        keybind_group = self._choice.GetCurrentString()
+        keybind_group = self._current_group_id()
         if keybind_group in self._fixed_keybinds:
             keybinds = self._fixed_keybinds[keybind_group]
         else:

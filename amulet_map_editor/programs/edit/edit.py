@@ -29,6 +29,12 @@ from amulet_map_editor.programs.edit.api.key_config import (
     MouseKeys,
     MousePresets,
     MouseActionGroups,
+    ACT_INCR_SPEED,
+    ACT_DECR_SPEED,
+    ACT_ZOOM_IN,
+    ACT_ZOOM_OUT,
+    DOT,
+    COMMA,
 )
 from amulet_map_editor.api import config, image
 
@@ -310,8 +316,8 @@ class EditExtension(wx.Panel, BaseProgram):
         user_keybinds = edit_config.get("user_keybinds", {})
         fixed_keybinds = {
             group_id: {
-                **KeyboardPresets.get(group_id, {}),
                 **MousePresets.get(group_id, {}),
+                **KeyboardPresets.get(group_id, {}),
             }
             for group_id in set(KeyboardPresets) | set(MousePresets)
         }
@@ -339,6 +345,10 @@ class EditExtension(wx.Panel, BaseProgram):
             # Combine keyboard and mouse bindings
             combined_keybinds = {**keybinds, **mouse_keybinds}
             self._canvas.buttons.register_actions(combined_keybinds)
+            self._canvas.buttons.register_action(ACT_INCR_SPEED, tuple(), DOT)
+            self._canvas.buttons.register_action(ACT_DECR_SPEED, tuple(), COMMA)
+            self._canvas.buttons.register_action(ACT_ZOOM_IN, tuple(), DOT)
+            self._canvas.buttons.register_action(ACT_ZOOM_OUT, tuple(), COMMA)
 
     def _edit_mouse_control(self):
         if self._canvas is not None:
@@ -407,6 +417,8 @@ class EditExtension(wx.Panel, BaseProgram):
                     keyboard_keybinds = KeyboardPresets.get(keybind_id, {})
                 combined_keybinds = {**keyboard_keybinds, **mouse_keybinds}
                 self._canvas.buttons.register_actions(combined_keybinds)
+                self._canvas.buttons.register_action(ACT_INCR_SPEED, tuple(), DOT)
+                self._canvas.buttons.register_action(ACT_DECR_SPEED, tuple(), COMMA)
 
     def _edit_camera_controls(self):
         if self._canvas is not None:
