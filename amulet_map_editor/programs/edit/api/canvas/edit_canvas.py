@@ -42,6 +42,7 @@ from ..key_config import (
     ACT_TOGGLE_MOVE_TARGET,
     ACT_DESELECT_ALL_BOXES,
     ACT_DESELECT_BOX,
+    ACT_INSPECT_POINT_1,
     ACT_INSPECT_BLOCK,
     ACT_INCR_SELECT_DISTANCE,
     ACT_DECR_SELECT_DISTANCE,
@@ -117,6 +118,7 @@ SELECT_MODE_ACTIONS = {
     ACT_TOGGLE_MOVE_TARGET,
     ACT_DESELECT_ALL_BOXES,
     ACT_DESELECT_BOX,
+    ACT_INSPECT_POINT_1,
     ACT_INCR_SELECT_DISTANCE,
     ACT_DECR_SELECT_DISTANCE,
 }
@@ -271,6 +273,10 @@ class EditCanvas(BaseEditCanvas):
             and not isinstance(self._tool_sizer._active_tool, SelectTool)
         ):
             wx.PostEvent(self, ToolChangeEvent(tool="Select"))
+            if evt.action_id == ACT_INSPECT_POINT_1:
+                wx.CallAfter(
+                    lambda: wx.PostEvent(self, InputPressEvent(ACT_INSPECT_POINT_1))
+                )
 
         if evt.action_id == ACT_HELP:
             webbrowser.open(
@@ -364,9 +370,17 @@ class EditCanvas(BaseEditCanvas):
     def _teleport_selection_cursor_to_camera(self):
         selection_group = self.selection.selection_group
         camera_x, camera_y, camera_z = self.camera.location
-        target_x = int(round(camera_x))
-        target_y = int(round(camera_y))
-        target_z = int(round(camera_z))
+        yaw, pitch = self.camera.rotation
+        yaw_radians = math.radians(yaw)
+        pitch_radians = math.radians(pitch)
+
+        forward_x = math.cos(pitch_radians) * math.sin(yaw_radians)
+        forward_y = -math.sin(pitch_radians)
+        forward_z = math.cos(pitch_radians) * math.cos(yaw_radians)
+
+        target_x = int(round(camera_x + forward_x * 5))
+        target_y = int(round(camera_y + forward_y * 5 - 2))
+        target_z = int(round(camera_z + forward_z * 5))
 
         if not selection_group or not selection_group.selection_boxes:
             self.selection.selection_corners = [

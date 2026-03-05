@@ -5,3 +5,18 @@ licence_dialog.header=You must own a licence to use Amulet.
 licence_dialog.content_1=From 11th December 2025, you must own a licence to use Amulet.
 licence_dialog.continue_button=I have a licence.
 licence_dialog.buy_button=Buy a licence.
+
+# Key configuration dialog
+key_config.group_name.modes=Modes
+key_config.group_name.navigation=Navigation
+key_config.group_name.camera=Camera
+key_config.group_name.cursor=Selection Controls
+key_config.group_name.select_mode=Select Mode
+key_config.group_name.selection=Selection
+key_config.group_name.2d=2D
+key_config.group_name.3d=3D
+key_config.group_description.modes=Switch tools and core editor modes.
+key_config.group_description.navigation=Global navigation and viewport positioning controls.
+key_config.group_description.camera=These keys affect the camera, highlighter, clipboard, preview caret depending on the move toggle setting
+key_config.group_description.cursor=This applies to the Highligher, Clipboard, and Preview Caret.  Those will always move with these keys. In addition, they may be moved with the camera keys when toggle is activated.
+key_config.group_description.select_mode=Using any of these keys will automatically switch to Select Mode

@@ -110,6 +110,7 @@ ACT_DECR_SELECT_DISTANCE = "ACT_DECR_SELECT_DISTANCE"
 ACT_DESELECT_ALL_BOXES = "ACT_DESELECT_ALL_BOXES"
 ACT_DESELECT_BOX = "ACT_DESELECT_BOX"
 ACT_INSPECT_BLOCK = "ACT_INSPECT_BLOCK"
+ACT_INSPECT_POINT_1 = "ACT_INSPECT_POINT_1"
 ACT_CHANGE_PROJECTION = "ACT_CHANGE_PROJECTION"
 ACT_TOGGLE_FULLSCREEN = "ACT_TOGGLE_FULLSCREEN"
 ACT_MOVE_CAMERA_TO_CURSOR = "ACT_MOVE_CAMERA_TO_CURSOR"
@@ -165,6 +166,7 @@ KeyboardKeys: List[KeyActionType] = [
     ACT_DECR_SELECT_DISTANCE,
     ACT_DESELECT_ALL_BOXES,
     ACT_DESELECT_BOX,
+    ACT_INSPECT_POINT_1,
     ACT_CHANGE_PROJECTION,
     ACT_TOGGLE_FULLSCREEN,
     ACT_MOVE_CAMERA_TO_CURSOR,
@@ -179,12 +181,12 @@ KeyboardKeys: List[KeyActionType] = [
 MouseKeys: List[KeyActionType] = [
     ACT_BOX_CLICK,
     ACT_BOX_CLICK_ADD,
+    ACT_INSPECT_BLOCK,
     ACT_CHANGE_MOUSE_MODE,
     ACT_INCR_SPEED,
     ACT_DECR_SPEED,
     ACT_ZOOM_IN,
     ACT_ZOOM_OUT,
-    ACT_INSPECT_BLOCK,
 ]
 
 # Combined list for compatibility
@@ -245,6 +247,7 @@ PresetKeybinds: KeybindContainer = {
         ACT_DESELECT_ALL_BOXES: ((Control, Shift), D),
         ACT_DESELECT_BOX: ((Control,), D),
         ACT_INSPECT_BLOCK: ((Alt,), MouseLeft),
+        ACT_INSPECT_POINT_1: ((), I),
         ACT_CHANGE_PROJECTION: ((), BACKTICK),
         ACT_MOVE_CAMERA_TO_CURSOR: ((Shift, Control), G),
         ACT_TELEPORT_CURSOR_TO_CAMERA: ((Alt, Control), G),
@@ -302,7 +305,8 @@ PresetKeybinds: KeybindContainer = {
         ACT_DECR_SELECT_DISTANCE: ((), F),
         ACT_DESELECT_ALL_BOXES: ((Control, Shift), D),
         ACT_DESELECT_BOX: ((Control,), D),
-        ACT_INSPECT_BLOCK: ((Alt,), MouseRight),
+        ACT_INSPECT_BLOCK: ((Alt,), MouseLeft),
+        ACT_INSPECT_POINT_1: ((), I),
         ACT_CHANGE_PROJECTION: ((), BACKTICK),
         ACT_MOVE_CAMERA_TO_CURSOR: ((Shift, Control), G),
         ACT_TELEPORT_CURSOR_TO_CAMERA: ((Alt, Control), G),
@@ -331,8 +335,6 @@ ActionGroups = OrderedDict([
         ACT_TOGGLE_WASD_MODE,
         ACT_MOVE_CAMERA_TO_CURSOR,
         ACT_TELEPORT_CURSOR_TO_CAMERA,
-        ACT_SAVE_ALL_CLOSE,
-        ACT_QUIT_WITHOUT_SAVE,
     ]),
     ("camera", [
         ACT_CHANGE_MOUSE_MODE,
@@ -377,6 +379,7 @@ ActionGroups = OrderedDict([
         ACT_DESELECT_ALL_BOXES,
         ACT_DESELECT_BOX,
         ACT_INSPECT_BLOCK,
+        ACT_INSPECT_POINT_1,
         ACT_INCR_SELECT_DISTANCE,
         ACT_DECR_SELECT_DISTANCE,
     ]),
@@ -428,8 +431,6 @@ KeyboardActionGroups = OrderedDict([
         ACT_TOGGLE_WASD_MODE,
         ACT_MOVE_CAMERA_TO_CURSOR,
         ACT_TELEPORT_CURSOR_TO_CAMERA,
-        ACT_SAVE_ALL_CLOSE,
-        ACT_QUIT_WITHOUT_SAVE,
     ]),
     ("camera", [
         ACT_MOVE_UP,
@@ -463,6 +464,7 @@ KeyboardActionGroups = OrderedDict([
         ACT_CLEAR_START_HIGHLIGHT_BOX_ACTION,
         ACT_BOX_CLICK_KEY,
         ACT_BOX_CLICK_ADD_KEY,
+        ACT_INSPECT_POINT_1,
         ACT_TOGGLE_MOVE_TARGET,
         ACT_DESELECT_ALL_BOXES,
         ACT_DESELECT_BOX,

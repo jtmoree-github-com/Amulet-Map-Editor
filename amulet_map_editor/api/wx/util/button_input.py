@@ -253,6 +253,17 @@ class ButtonInput(WindowContainer):
                 active_keys.add(Alt)
 
             action_ids = self._find_actions(key, active_keys)
+            if isinstance(key, str) and key.startswith("MOUSE_") and Alt in active_keys:
+                filtered_action_ids = []
+                for action_id in action_ids:
+                    action_bindings = self._registered_actions.get(action_id, ())
+                    if any(
+                        action.trigger_key == key and Alt in action.modifier_keys
+                        for action in action_bindings
+                    ):
+                        filtered_action_ids.append(action_id)
+                action_ids = tuple(filtered_action_ids)
+
             self._continuous_actions.update(action_ids)
             for action_id in action_ids:
                 wx.PostEvent(self.window, InputPressEvent(action_id))

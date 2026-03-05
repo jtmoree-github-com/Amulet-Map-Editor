@@ -1,5 +1,6 @@
 from typing import TYPE_CHECKING
 import logging
+import numpy
 
 import wx
 from wx.adv import RichToolTip
@@ -13,6 +14,7 @@ from ..events import (
 )
 from ..key_config import (
     ACT_INSPECT_BLOCK,
+    ACT_INSPECT_POINT_1,
 )
 
 if TYPE_CHECKING:
@@ -36,9 +38,24 @@ class InspectBlockBehaviour(BaseBehaviour):
         """Logic to run each time the input press event is run."""
         if evt.action_id == ACT_INSPECT_BLOCK:
             self._inspect_block()
+        elif evt.action_id == ACT_INSPECT_POINT_1:
+            self._inspect_point_1()
         evt.Skip()
 
     def _inspect_block(self):
+        x, y, z = self._pointer_behaviour.pointer_base
+        self._inspect_at((x, y, z))
+
+    def _inspect_point_1(self):
+        if not hasattr(self._pointer_behaviour, "active_block_positions"):
+            return
+        if not getattr(self._pointer_behaviour, "selection_group", None):
+            return
+
+        point_1, _ = self._pointer_behaviour.active_block_positions
+        self._inspect_at(point_1)
+
+    def _inspect_at(self, location):
         def truncate(s: str, max_line_length: int = None) -> str:
             if isinstance(max_line_length, int):
                 max_line_length = max(-1, max_line_length)
@@ -54,14 +71,60 @@ class InspectBlockBehaviour(BaseBehaviour):
                 )
             return s
 
-        full_msg = self._get_block_info_message()
+        location = self._normalise_location(location)
+        if location is None:
+            return
+
+        full_msg = self._get_block_info_message(location)
         msg = truncate(full_msg, 150)
         tooltip = RichToolTip("Inspect Block", msg)
-        x, y = self.canvas.mouse.xy
+        x, y = self._tooltip_anchor(location)
         tooltip.ShowFor(self.canvas, wx.Rect(x, y, 1, 1))
 
-    def _get_block_info_message(self) -> str:
-        x, y, z = self._pointer_behaviour.pointer_base
+    def _normalise_location(self, location):
+        try:
+            if isinstance(location, (tuple, list)) and len(location) == 2:
+                first = location[0]
+                if isinstance(first, (tuple, list, numpy.ndarray)) and len(first) == 3:
+                    location = first
+
+            x, y, z = location
+            return int(x), int(y), int(z)
+        except Exception:
+            log.error("Could not normalise inspect location: %r", location)
+            return None
+
+    def _tooltip_anchor(self, location):
+        projected = self._project_world_to_screen(location)
+        if projected is not None:
+            return projected
+        return self.canvas.mouse.xy
+
+    def _project_world_to_screen(self, location):
+        x, y, z = location
+        width, height = self.canvas.GetSize()
+        if width <= 0 or height <= 0:
+            return None
+
+        clip = numpy.matmul(
+            self.canvas.camera.transformation_matrix,
+            numpy.array((x + 0.5, y + 0.5, z + 0.5, 1.0)),
+        )
+        w = float(clip[3])
+        if w == 0:
+            return None
+
+        ndc_x = float(clip[0]) / w
+        ndc_y = float(clip[1]) / w
+        if not (-1.0 <= ndc_x <= 1.0 and -1.0 <= ndc_y <= 1.0):
+            return None
+
+        sx = int((ndc_x + 1.0) * 0.5 * width)
+        sy = int((1.0 - ndc_y) * 0.5 * height)
+        return sx, sy
+
+    def _get_block_info_message(self, location) -> str:
+        x, y, z = location
         try:
             block = self.canvas.world.get_block(x, y, z, self.canvas.dimension)
             chunk = self.canvas.world.get_chunk(x >> 4, z >> 4, self.canvas.dimension)

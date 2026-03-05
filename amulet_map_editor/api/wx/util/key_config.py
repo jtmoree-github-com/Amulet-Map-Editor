@@ -1,4 +1,5 @@
 import wx
+from wx.lib.wordwrap import wordwrap
 from amulet_map_editor.api import lang
 from amulet_map_editor.api.wx.ui.simple import (
     SimpleDialog,
@@ -420,6 +421,8 @@ class KeyConfigDialog(SimpleDialog):
         self.sizer.Add(self._key_config, 1, wx.EXPAND)
         self.Layout()
         self.Fit()
+        width, height = self.GetSize()
+        self.SetMinSize((max(1080, width), max(700, height)))
         
         # Set focus on the scrollable panel for keyboard navigation
         wx.CallAfter(self._key_config._options.SetFocus)
@@ -430,6 +433,8 @@ class KeyConfigDialog(SimpleDialog):
 
 
 class KeyConfig(wx.BoxSizer):
+    _EDITABLE_KEY_BUTTON_MIN_WIDTH = 240
+
     def __init__(
         self,
         parent: wx.Window,
@@ -471,7 +476,7 @@ class KeyConfig(wx.BoxSizer):
         self._rename.Bind(wx.EVT_BUTTON, lambda evt: self._rename_group())
         top_sizer.Add(self._rename, 0, wx.ALL, 5)
 
-        self._options = SimpleScrollablePanel(parent, size=(700, 500))
+        self._options = SimpleScrollablePanel(parent, size=(760, 560))
         self.Add(self._options, 1, wx.EXPAND)
 
         self._key_buttons: Dict[str, wx.Button] = {}
@@ -515,6 +520,61 @@ class KeyConfig(wx.BoxSizer):
             return group_id
         return self._choice.GetCurrentString()
 
+    def _create_selectable_text(
+        self, text: str, bold: bool = False, min_width: int = 0
+    ) -> wx.TextCtrl:
+        ctrl = wx.TextCtrl(
+            self._options,
+            value=text,
+            style=wx.TE_READONLY | wx.BORDER_NONE,
+        )
+        ctrl.SetBackgroundColour(self._options.GetBackgroundColour())
+        if min_width > 0:
+            ctrl.SetMinSize((min_width, -1))
+        if bold:
+            font = ctrl.GetFont()
+            ctrl.SetFont(font.Bold())
+        ctrl.Bind(wx.EVT_MOUSEWHEEL, self._on_selectable_text_mouse_wheel)
+        return ctrl
+
+    def _create_selectable_paragraph(
+        self, text: str, wrap_width: int, italic: bool = False
+    ) -> wx.TextCtrl:
+        ctrl = wx.TextCtrl(
+            self._options,
+            value="",
+            style=wx.TE_READONLY | wx.TE_MULTILINE | wx.BORDER_NONE,
+        )
+        ctrl.SetBackgroundColour(self._options.GetBackgroundColour())
+        font = ctrl.GetFont()
+        if italic:
+            font.SetStyle(wx.FONTSTYLE_ITALIC)
+        ctrl.SetFont(font)
+
+        dc = wx.ClientDC(self._options)
+        dc.SetFont(ctrl.GetFont())
+        wrapped_text = wordwrap(text, wrap_width, dc)
+        ctrl.SetValue(wrapped_text)
+
+        line_count = max(1, wrapped_text.count("\n") + 1)
+        height = ctrl.GetCharHeight() * line_count + 8
+        ctrl.SetMinSize((wrap_width + 10, height))
+        ctrl.Bind(wx.EVT_MOUSEWHEEL, self._on_selectable_text_mouse_wheel)
+        return ctrl
+
+    def _on_selectable_text_mouse_wheel(self, evt: wx.MouseEvent):
+        wheel_delta = evt.GetWheelDelta() or 120
+        wheel_rotation = evt.GetWheelRotation()
+        lines_per_action = evt.GetLinesPerAction() or 3
+        if wheel_rotation != 0 and hasattr(self._options, "ScrollLines"):
+            scroll_lines = -int(wheel_rotation / wheel_delta) * lines_per_action
+            if scroll_lines != 0:
+                self._options.ScrollLines(scroll_lines)
+
+    def _refresh_options_scroll(self):
+        self._options.Layout()
+        self._options.FitInside()
+
     def _rebuild_grouped_options(self, group, editable: bool):
         """Rebuild options panel with section headings and grouped actions."""
         # Clear existing widgets
@@ -527,10 +587,9 @@ class KeyConfig(wx.BoxSizer):
 
         if self._show_misc:
             philosophy_text = lang.get("key_config.philosophy")
-            philosophy_label = wx.StaticText(
-                self._options, label=philosophy_text, style=wx.ALIGN_LEFT
+            philosophy_label = self._create_selectable_paragraph(
+                philosophy_text, wrap_width=620
             )
-            philosophy_label.Wrap(620)
             main_sizer.Add(philosophy_label, 0, wx.ALL | wx.EXPAND, 10)
             main_sizer.Add(wx.StaticLine(self._options), 0, wx.EXPAND | wx.ALL, 5)
 
@@ -545,7 +604,11 @@ class KeyConfig(wx.BoxSizer):
             readonly_items = self._get_group_readonly_items(group_name, group)
             
             # Add group heading (show all groups, even if empty)
-            heading = wx.StaticText(self._options, label=group_name.replace("_", " ").title())
+            heading_key = f"key_config.group_name.{group_name}"
+            heading_text = lang.get(heading_key)
+            if heading_text == heading_key:
+                heading_text = group_name.replace("_", " ").title()
+            heading = wx.StaticText(self._options, label=heading_text)
             font = heading.GetFont()
             font.PointSize += 2
             font = font.Bold()
@@ -556,16 +619,17 @@ class KeyConfig(wx.BoxSizer):
             description_key = f"key_config.group_description.{group_name}"
             description_text = lang.get(description_key)
             if self._show_descriptions and description_text != description_key:  # If not the key itself, we have a valid translation
-                description = wx.StaticText(self._options, label=description_text)
-                description_font = description.GetFont()
-                description_font.SetStyle(wx.FONTSTYLE_ITALIC)
-                description.SetFont(description_font)
-                description.Wrap(500)
+                description = self._create_selectable_paragraph(
+                    description_text, wrap_width=500, italic=True
+                )
                 main_sizer.Add(description, 0, wx.ALL | wx.EXPAND, 5)
             
             # Add grid for this group if it has actions
             if actions_to_show or readonly_items:
                 grid_sizer = wx.FlexGridSizer(0, 2, 5, 5)
+                grid_sizer.AddGrowableCol(1, 1)
+                readonly_added = False
+
                 for action in actions_to_show:
                     key_text = format_key_display(
                         stringify_key(group.get(action, ((), "NONE")))
@@ -573,7 +637,7 @@ class KeyConfig(wx.BoxSizer):
                     if editable:
                         self._key_buttons[action] = button = wx.Button(self._options)
                         button.SetLabel(key_text)
-                        button.SetMinSize((170, -1))
+                        button.SetMinSize((self._EDITABLE_KEY_BUTTON_MIN_WIDTH, -1))
                         button.Bind(
                             wx.EVT_BUTTON,
                             lambda evt, a=action: self._modify_button(a),
@@ -585,20 +649,20 @@ class KeyConfig(wx.BoxSizer):
                             12,
                         )
                     else:
-                        hotkey_label = wx.StaticText(self._options, label=key_text)
-                        hotkey_font = hotkey_label.GetFont()
-                        hotkey_font = hotkey_font.Bold()
-                        hotkey_label.SetFont(hotkey_font)
+                        hotkey_label = self._create_selectable_text(
+                            key_text,
+                            bold=True,
+                            min_width=180,
+                        )
                         grid_sizer.Add(
                             hotkey_label,
                             0,
                             wx.ALIGN_RIGHT | wx.ALIGN_CENTER_VERTICAL | wx.RIGHT,
                             12,
                         )
-                    label = wx.StaticText(
-                        self._options,
-                        label=format_label_display(lang.get(f"action.{action.lower()}")),
-                        style=wx.ALIGN_LEFT,
+                    label = self._create_selectable_text(
+                        format_label_display(lang.get(f"action.{action.lower()}")),
+                        min_width=420,
                     )
                     grid_sizer.Add(
                         label,
@@ -607,30 +671,57 @@ class KeyConfig(wx.BoxSizer):
                         12,
                     )
 
-                for label_text, hotkey_text in readonly_items:
-                    hotkey_label = wx.StaticText(
-                        self._options, label=format_key_display(hotkey_text)
-                    )
-                    hotkey_font = hotkey_label.GetFont()
-                    hotkey_font = hotkey_font.Bold()
-                    hotkey_label.SetFont(hotkey_font)
-                    grid_sizer.Add(
-                        hotkey_label,
-                        0,
-                        wx.ALIGN_RIGHT | wx.ALIGN_CENTER_VERTICAL | wx.RIGHT,
-                        12,
-                    )
-                    readonly_label = wx.StaticText(
-                        self._options,
-                        label=format_label_display(label_text),
-                        style=wx.ALIGN_LEFT,
-                    )
-                    grid_sizer.Add(
-                        readonly_label,
-                        0,
-                        wx.ALIGN_LEFT | wx.ALIGN_CENTER_VERTICAL | wx.LEFT,
-                        12,
-                    )
+                    if group_name == "navigation" and action == "ACT_TOGGLE_WASD_MODE":
+                        for label_text, hotkey_text in readonly_items:
+                            hotkey_label = self._create_selectable_text(
+                                format_key_display(hotkey_text),
+                                bold=True,
+                                min_width=180,
+                            )
+                            grid_sizer.Add(
+                                hotkey_label,
+                                0,
+                                wx.ALIGN_RIGHT | wx.ALIGN_CENTER_VERTICAL | wx.RIGHT,
+                                12,
+                            )
+                            readonly_label = self._create_selectable_text(
+                                format_label_display(label_text),
+                                min_width=420,
+                            )
+                            grid_sizer.Add(
+                                readonly_label,
+                                0,
+                                wx.ALIGN_LEFT | wx.ALIGN_CENTER_VERTICAL | wx.LEFT,
+                                12,
+                            )
+                        readonly_added = True
+
+                if not readonly_added:
+                    for label_text, hotkey_text in readonly_items:
+                        hotkey_align = (
+                            wx.ALIGN_LEFT if group_name == "select_mode" else wx.ALIGN_RIGHT
+                        )
+                        hotkey_label = self._create_selectable_text(
+                            format_key_display(hotkey_text),
+                            bold=True,
+                            min_width=180,
+                        )
+                        grid_sizer.Add(
+                            hotkey_label,
+                            0,
+                            hotkey_align | wx.ALIGN_CENTER_VERTICAL | wx.RIGHT,
+                            12,
+                        )
+                        readonly_label = self._create_selectable_text(
+                            format_label_display(label_text),
+                            min_width=420,
+                        )
+                        grid_sizer.Add(
+                            readonly_label,
+                            0,
+                            wx.ALIGN_LEFT | wx.ALIGN_CENTER_VERTICAL | wx.LEFT,
+                            12,
+                        )
                 
                 main_sizer.Add(grid_sizer, 0, wx.ALL | wx.EXPAND, 5)
             else:
@@ -644,7 +735,7 @@ class KeyConfig(wx.BoxSizer):
             # Add spacing between groups
             main_sizer.Add(wx.StaticLine(self._options), 0, wx.EXPAND | wx.ALL, 5)
         
-        self._options.Layout()
+        self._refresh_options_scroll()
 
     def _get_group_readonly_items(self, group_name: str, group: KeybindGroup):
         if group_name == "navigation":
@@ -669,10 +760,10 @@ class KeyConfig(wx.BoxSizer):
         misc_hotkeys = [
             (lang.get("menu_bar.file.open_world"), "Ctrl+O"),
             ("Close World / Quit", "Ctrl+Q"),
+            ("Quit Without Saving", "Ctrl+Alt+Shift+Q"),
             (lang.get("program_3d_edit.menu_bar.file.save"), "Ctrl+S"),
             ("Save All", "Ctrl+Shift+S"),
             ("Save All and Quit", "Ctrl+Shift+Q"),
-            ("Quit Without Saving", "Ctrl+Alt+Shift+Q"),
             ("Next Tab in Current World", "Ctrl+Shift+Page Down"),
             ("Previous Tab in Current World", "Ctrl+Shift+Page Up"),
             ("Next World", "Ctrl+Page Down"),
@@ -688,25 +779,24 @@ class KeyConfig(wx.BoxSizer):
         ]
 
         grid_sizer = wx.FlexGridSizer(len(misc_hotkeys), 2, 5, 10)
+        grid_sizer.AddGrowableCol(1, 1)
         for label, hotkey in misc_hotkeys:
             # Strip ellipsis (...) from menu labels in this static display
             display_label = label.replace("...", "")
-            hotkey_label = wx.StaticText(
-                self._options, label=format_key_display(hotkey)
+            hotkey_label = self._create_selectable_text(
+                format_key_display(hotkey),
+                bold=True,
+                min_width=180,
             )
-            hotkey_font = hotkey_label.GetFont()
-            hotkey_font = hotkey_font.Bold()
-            hotkey_label.SetFont(hotkey_font)
             grid_sizer.Add(
                 hotkey_label,
                 0,
                 wx.ALIGN_LEFT | wx.ALIGN_CENTER_VERTICAL | wx.RIGHT,
                 12,
             )
-            label_text = wx.StaticText(
-                self._options,
-                label=format_label_display(display_label),
-                style=wx.ALIGN_LEFT,
+            label_text = self._create_selectable_text(
+                format_label_display(display_label),
+                min_width=420,
             )
             grid_sizer.Add(
                 label_text,
@@ -725,13 +815,14 @@ class KeyConfig(wx.BoxSizer):
         self._key_buttons.clear()
         
         grid_sizer = wx.FlexGridSizer(len(self._entries), 2, 5, 5)
+        grid_sizer.AddGrowableCol(1, 1)
         self._options.sizer.Add(grid_sizer, 0, wx.ALL | wx.EXPAND, 5)
         for action in self._entries:
             key_text = format_key_display(stringify_key(group.get(action, ((), "NONE"))))
             if editable:
                 self._key_buttons[action] = button = wx.Button(self._options)
                 button.SetLabel(key_text)
-                button.SetMinSize((170, -1))
+                button.SetMinSize((self._EDITABLE_KEY_BUTTON_MIN_WIDTH, -1))
                 button.Bind(wx.EVT_BUTTON, lambda evt, a=action: self._modify_button(a))
                 grid_sizer.Add(
                     button,
@@ -740,20 +831,20 @@ class KeyConfig(wx.BoxSizer):
                     12,
                 )
             else:
-                hotkey_label = wx.StaticText(self._options, label=key_text)
-                hotkey_font = hotkey_label.GetFont()
-                hotkey_font = hotkey_font.Bold()
-                hotkey_label.SetFont(hotkey_font)
+                hotkey_label = self._create_selectable_text(
+                    key_text,
+                    bold=True,
+                    min_width=180,
+                )
                 grid_sizer.Add(
                     hotkey_label,
                     0,
                     wx.ALIGN_RIGHT | wx.ALIGN_CENTER_VERTICAL | wx.RIGHT,
                     12,
                 )
-            label = wx.StaticText(
-                self._options,
-                label=format_label_display(lang.get(f"action.{action.lower()}")),
-                style=wx.ALIGN_LEFT,
+            label = self._create_selectable_text(
+                format_label_display(lang.get(f"action.{action.lower()}")),
+                min_width=420,
             )
             grid_sizer.Add(
                 label,
@@ -762,7 +853,7 @@ class KeyConfig(wx.BoxSizer):
                 12,
             )
         
-        self._options.Layout()
+        self._refresh_options_scroll()
 
 
     def _rebuild_choice(self, group_name=None):
