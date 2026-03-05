@@ -1,4 +1,5 @@
 import logging
+import math
 import wx
 import traceback
 from OpenGL.GL import (
@@ -240,7 +241,22 @@ class BaseEditCanvas(EventCanvas):
         self._renderer.move_camera(location, rotation)
 
         if not self.selection.selection_group:
-            self.selection.selection_corners = [((0, 0, 0), (1, 1, 1))]
+            camera_x, camera_y, camera_z = location
+            yaw, pitch = rotation
+            yaw_rad = math.radians(yaw)
+            pitch_rad = math.radians(pitch)
+
+            forward_x = math.cos(pitch_rad) * math.sin(yaw_rad)
+            forward_y = -math.sin(pitch_rad)
+            forward_z = math.cos(pitch_rad) * math.cos(yaw_rad)
+
+            target_x = int(round(camera_x + forward_x * 5))
+            target_y = int(round(camera_y + forward_y * 5 - 2))
+            target_z = int(round(camera_z + forward_z * 5))
+
+            self.selection.selection_corners = [
+                ((target_x, target_y, target_z), (target_x + 1, target_y + 1, target_z + 1))
+            ]
 
     def bind_events(self):
         """Set up all events required to run.

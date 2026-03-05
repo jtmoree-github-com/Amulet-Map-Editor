@@ -20,8 +20,13 @@ ActionLookupType = Dict[SerialisedKeyType, KeyActionType]
 KeybindContainer = Dict[KeybindGroupIdType, KeybindGroup]
 
 PRESET_GROUP_LABELS: Dict[str, str] = {
-    "right": "right_hand_mouse",
-    "left": "left_hand_mouse",
+    "right": "Right hand on Mouse",
+    "left": "Left hand on Mouse",
+}
+
+PRESET_GROUP_LABELS_MOUSE: Dict[str, str] = {
+    "right": "Left Mouse",
+    "left": "Right Mouse",
 }
 
 MouseLeft = "MOUSE_LEFT"
@@ -306,6 +311,27 @@ def stringify_key(key: SerialisedKeyType) -> str:
     return " + ".join([str(s) for s in key[0] + (key[1],)])
 
 
+def format_key_display(key_text: str) -> str:
+    return key_text.upper()
+
+
+def format_label_display(label_text: str) -> str:
+    stripped_text = label_text.replace("&&", "\0")
+    stripped_text = stripped_text.replace("&", "")
+    stripped_text = stripped_text.replace("\0", "&")
+    text = stripped_text.strip()
+    if not text:
+        return text
+    first_alpha_index = next((i for i, char in enumerate(text) if char.isalpha()), -1)
+    if first_alpha_index == -1:
+        return text
+    return (
+        text[:first_alpha_index]
+        + text[first_alpha_index].upper()
+        + text[first_alpha_index + 1 :].lower()
+    )
+
+
 class KeyCatcher(wx.Dialog):
     def __init__(self, parent: wx.Window, action: str):
         super().__init__(
@@ -472,8 +498,13 @@ class KeyConfig(wx.BoxSizer):
 
     def _choice_items(self) -> Dict[str, str]:
         items: Dict[str, str] = {}
+        preset_labels = (
+            PRESET_GROUP_LABELS_MOUSE
+            if self._require_mouse_action is True
+            else PRESET_GROUP_LABELS
+        )
         for group_id in self._fixed_keybinds.keys():
-            items[group_id] = PRESET_GROUP_LABELS.get(group_id, group_id)
+            items[group_id] = preset_labels.get(group_id, group_id)
         for group_id in self._user_keybinds.keys():
             items[group_id] = group_id
         return items
@@ -536,7 +567,9 @@ class KeyConfig(wx.BoxSizer):
             if actions_to_show or readonly_items:
                 grid_sizer = wx.FlexGridSizer(0, 2, 5, 5)
                 for action in actions_to_show:
-                    key_text = stringify_key(group.get(action, ((), "NONE")))
+                    key_text = format_key_display(
+                        stringify_key(group.get(action, ((), "NONE")))
+                    )
                     if editable:
                         self._key_buttons[action] = button = wx.Button(self._options)
                         button.SetLabel(key_text)
@@ -563,7 +596,9 @@ class KeyConfig(wx.BoxSizer):
                             12,
                         )
                     label = wx.StaticText(
-                        self._options, label=lang.get(f"action.{action.lower()}"), style=wx.ALIGN_LEFT
+                        self._options,
+                        label=format_label_display(lang.get(f"action.{action.lower()}")),
+                        style=wx.ALIGN_LEFT,
                     )
                     grid_sizer.Add(
                         label,
@@ -573,7 +608,9 @@ class KeyConfig(wx.BoxSizer):
                     )
 
                 for label_text, hotkey_text in readonly_items:
-                    hotkey_label = wx.StaticText(self._options, label=hotkey_text)
+                    hotkey_label = wx.StaticText(
+                        self._options, label=format_key_display(hotkey_text)
+                    )
                     hotkey_font = hotkey_label.GetFont()
                     hotkey_font = hotkey_font.Bold()
                     hotkey_label.SetFont(hotkey_font)
@@ -584,7 +621,9 @@ class KeyConfig(wx.BoxSizer):
                         12,
                     )
                     readonly_label = wx.StaticText(
-                        self._options, label=label_text, style=wx.ALIGN_LEFT
+                        self._options,
+                        label=format_label_display(label_text),
+                        style=wx.ALIGN_LEFT,
                     )
                     grid_sizer.Add(
                         readonly_label,
@@ -617,23 +656,7 @@ class KeyConfig(wx.BoxSizer):
                 (lang.get("program_3d_edit.menu_bar.edit.cut"), "Ctrl+X"),
                 (lang.get("program_3d_edit.menu_bar.edit.copy"), "Ctrl+C"),
                 (lang.get("program_3d_edit.select_tool.delete_button"), "Delete"),
-                (lang.get("program_3d_edit.menu_bar.edit.select_all"), "Ctrl+A"),
             ]
-        elif group_name == "cursor":
-            # Add rotation controls that dynamically show Alt + camera look keys
-            rotation_items = []
-            look_actions = [
-                ("ACT_LOOK_UP", "Rotate Selection Up"),
-                ("ACT_LOOK_DOWN", "Rotate Selection Down"),
-                ("ACT_LOOK_LEFT", "Rotate Selection Left"),
-                ("ACT_LOOK_RIGHT", "Rotate Selection Right"),
-            ]
-            for action, description in look_actions:
-                if action in group:
-                    key_binding = group[action]
-                    # Format as Alt + [key]
-                    rotation_items.append((description, stringify_key(key_binding)))
-            return rotation_items
         return []
 
     def _add_misc_hotkeys(self, main_sizer: wx.BoxSizer):
@@ -648,6 +671,8 @@ class KeyConfig(wx.BoxSizer):
             ("Close World / Quit", "Ctrl+Q"),
             (lang.get("program_3d_edit.menu_bar.file.save"), "Ctrl+S"),
             ("Save All", "Ctrl+Shift+S"),
+            ("Save All and Quit", "Ctrl+Shift+Q"),
+            ("Quit Without Saving", "Ctrl+Alt+Shift+Q"),
             ("Next Tab in Current World", "Ctrl+Shift+Page Down"),
             ("Previous Tab in Current World", "Ctrl+Shift+Page Up"),
             ("Next World", "Ctrl+Page Down"),
@@ -659,13 +684,16 @@ class KeyConfig(wx.BoxSizer):
             (lang.get("program_3d_edit.menu_bar.edit.undo"), "Ctrl+Z"),
             (lang.get("program_3d_edit.menu_bar.edit.redo"), "Ctrl+Y"),
             (lang.get("program_3d_edit.menu_bar.edit.paste"), "Ctrl+V"),
+            (lang.get("program_3d_edit.menu_bar.edit.select_all"), "Ctrl+A"),
         ]
 
         grid_sizer = wx.FlexGridSizer(len(misc_hotkeys), 2, 5, 10)
         for label, hotkey in misc_hotkeys:
             # Strip ellipsis (...) from menu labels in this static display
             display_label = label.replace("...", "")
-            hotkey_label = wx.StaticText(self._options, label=hotkey)
+            hotkey_label = wx.StaticText(
+                self._options, label=format_key_display(hotkey)
+            )
             hotkey_font = hotkey_label.GetFont()
             hotkey_font = hotkey_font.Bold()
             hotkey_label.SetFont(hotkey_font)
@@ -675,7 +703,11 @@ class KeyConfig(wx.BoxSizer):
                 wx.ALIGN_LEFT | wx.ALIGN_CENTER_VERTICAL | wx.RIGHT,
                 12,
             )
-            label_text = wx.StaticText(self._options, label=display_label, style=wx.ALIGN_LEFT)
+            label_text = wx.StaticText(
+                self._options,
+                label=format_label_display(display_label),
+                style=wx.ALIGN_LEFT,
+            )
             grid_sizer.Add(
                 label_text,
                 0,
@@ -695,7 +727,7 @@ class KeyConfig(wx.BoxSizer):
         grid_sizer = wx.FlexGridSizer(len(self._entries), 2, 5, 5)
         self._options.sizer.Add(grid_sizer, 0, wx.ALL | wx.EXPAND, 5)
         for action in self._entries:
-            key_text = stringify_key(group.get(action, ((), "NONE")))
+            key_text = format_key_display(stringify_key(group.get(action, ((), "NONE"))))
             if editable:
                 self._key_buttons[action] = button = wx.Button(self._options)
                 button.SetLabel(key_text)
@@ -719,7 +751,9 @@ class KeyConfig(wx.BoxSizer):
                     12,
                 )
             label = wx.StaticText(
-                self._options, label=lang.get(f"action.{action.lower()}"), style=wx.ALIGN_LEFT
+                self._options,
+                label=format_label_display(lang.get(f"action.{action.lower()}")),
+                style=wx.ALIGN_LEFT,
             )
             grid_sizer.Add(
                 label,

@@ -9,6 +9,7 @@ from OpenGL.GL import (
     GL_DEPTH_BUFFER_BIT,
 )
 
+from amulet.api.selection import SelectionGroup, SelectionBox
 from amulet.api.data_types import BlockCoordinates
 
 from amulet_map_editor import lang
@@ -34,10 +35,12 @@ from amulet_map_editor.programs.edit.api.key_config import (
     ACT_CURSOR_BACKWARDS,
     ACT_CURSOR_LEFT,
     ACT_CURSOR_RIGHT,
-    ACT_LOOK_UP,
-    ACT_LOOK_DOWN,
-    ACT_LOOK_LEFT,
-    ACT_LOOK_RIGHT,
+    ACT_ROTATE_CURSOR_UP,
+    ACT_ROTATE_CURSOR_DOWN,
+    ACT_ROTATE_CURSOR_LEFT,
+    ACT_ROTATE_CURSOR_RIGHT,
+    ACT_BOX_CLICK_KEY,
+    ACT_CLEAR_START_HIGHLIGHT_BOX_ACTION,
     ACT_TOGGLE_MOVE_TARGET,
     ACT_TOGGLE_WASD_MODE,
     ACT_MOVE_UP,
@@ -222,6 +225,19 @@ class SelectTool(wx.BoxSizer, DefaultBaseToolUI):
         self._move_selection_radio.Bind(wx.EVT_ENTER_WINDOW, self._on_tool_ui_hover)
         move_radio_sizer.Add(self._move_selection_radio, 0, wx.ALL, 2)
 
+        self._move_all_radio = wx.RadioButton(
+            self._button_panel,
+            label=lang.get("program_3d_edit.select_tool.button_all"),
+        )
+        self._move_all_radio.SetToolTip(
+            lang.get("program_3d_edit.select_tool.button_all_tooltip")
+        )
+        self._move_all_radio.SetBackgroundColour((230, 230, 230))
+        self._move_all_radio.Disable()
+        self._move_all_radio.Bind(wx.EVT_RADIOBUTTON, self._on_move_target_change)
+        self._move_all_radio.Bind(wx.EVT_ENTER_WINDOW, self._on_tool_ui_hover)
+        move_radio_sizer.Add(self._move_all_radio, 0, wx.ALL, 2)
+
         self._button_panel.Bind(wx.EVT_ENTER_WINDOW, self._on_tool_ui_hover)
         self._button_panel.Bind(wx.EVT_CHAR_HOOK, self._on_panel_char_hook)
 
@@ -331,6 +347,7 @@ class SelectTool(wx.BoxSizer, DefaultBaseToolUI):
         self._move_point1_radio.Enable()
         self._move_point2_radio.Enable()
         self._move_selection_radio.Enable()
+        self._move_all_radio.Enable()
         evt.Skip()
 
     def _disable_inputs(self, evt):
@@ -338,6 +355,7 @@ class SelectTool(wx.BoxSizer, DefaultBaseToolUI):
         self._move_point1_radio.Disable()
         self._move_point2_radio.Disable()
         self._move_selection_radio.Disable()
+        self._move_all_radio.Disable()
         evt.Skip()
 
     def _set_scroll_state(self, state: bool):
@@ -377,6 +395,7 @@ class SelectTool(wx.BoxSizer, DefaultBaseToolUI):
             return False
 
         controls = self._collect_focusable_children(self._button_panel)
+        controls = self._collapse_move_target_radio_focus(controls)
         if not controls:
             return False
 
@@ -389,6 +408,29 @@ class SelectTool(wx.BoxSizer, DefaultBaseToolUI):
 
         controls[target_index].SetFocus()
         return True
+
+    def _collapse_move_target_radio_focus(self, controls):
+        radios = [
+            radio
+            for radio in (
+                self._move_point1_radio,
+                self._move_point2_radio,
+                self._move_selection_radio,
+                self._move_all_radio,
+            )
+            if isinstance(radio, wx.Window)
+            and radio in controls
+            and radio.IsShownOnScreen()
+            and radio.IsEnabled()
+        ]
+        if not radios:
+            return controls
+
+        selected_radio = next((radio for radio in radios if radio.GetValue()), radios[0])
+        first_index = min(controls.index(radio) for radio in radios)
+        collapsed_controls = [control for control in controls if control not in radios]
+        collapsed_controls.insert(first_index, selected_radio)
+        return collapsed_controls
 
     def _collect_focusable_children(self, parent: wx.Window):
         controls = []
@@ -419,19 +461,22 @@ class SelectTool(wx.BoxSizer, DefaultBaseToolUI):
         return False
 
     def _on_input_press(self, evt: InputPressEvent):
-        if evt.action_id == ACT_TOGGLE_MOVE_TARGET:
+        if evt.action_id == ACT_CLEAR_START_HIGHLIGHT_BOX_ACTION:
+            self._move_point1_radio.SetValue(True)
+        elif evt.action_id == ACT_BOX_CLICK_KEY:
+            self._move_selection_radio.SetValue(True)
+        elif evt.action_id == ACT_TOGGLE_MOVE_TARGET:
             self._toggle_move_target()
         elif evt.action_id == ACT_TOGGLE_WASD_MODE:
             self.canvas.wasd_moves_cursor = not self.canvas.wasd_moves_cursor
-        elif self.canvas.wasd_moves_cursor:
-            if evt.action_id == ACT_LOOK_UP:
-                self._rotate_selection_box("x", 1)
-            elif evt.action_id == ACT_LOOK_DOWN:
-                self._rotate_selection_box("x", -1)
-            elif evt.action_id == ACT_LOOK_LEFT:
-                self._rotate_selection_box("y", -1)
-            elif evt.action_id == ACT_LOOK_RIGHT:
-                self._rotate_selection_box("y", 1)
+        elif evt.action_id == ACT_ROTATE_CURSOR_UP:
+            self._rotate_selection_box("x", 1)
+        elif evt.action_id == ACT_ROTATE_CURSOR_DOWN:
+            self._rotate_selection_box("x", -1)
+        elif evt.action_id == ACT_ROTATE_CURSOR_LEFT:
+            self._rotate_selection_box("y", -1)
+        elif evt.action_id == ACT_ROTATE_CURSOR_RIGHT:
+            self._rotate_selection_box("y", 1)
         evt.Skip()
 
     def _toggle_move_target(self):
@@ -439,6 +484,7 @@ class SelectTool(wx.BoxSizer, DefaultBaseToolUI):
             self._move_point1_radio,
             self._move_point2_radio,
             self._move_selection_radio,
+            self._move_all_radio,
         ]
         current_index = 0
         for index, radio in enumerate(radios):
@@ -452,6 +498,7 @@ class SelectTool(wx.BoxSizer, DefaultBaseToolUI):
         """Handle cursor movement with arrow keys and page up/down."""
         x = y = z = 0
         wasd_consumed = False
+        moved_selection = False
 
         if ACT_CURSOR_UP in evt.action_ids:
             y += 1
@@ -495,9 +542,13 @@ class SelectTool(wx.BoxSizer, DefaultBaseToolUI):
                 self._move_point2(offset)
             elif self._move_selection_radio.GetValue():
                 self._move_selection(offset)
+            elif self._move_all_radio.GetValue():
+                self._move_all(offset)
+            moved_selection = True
 
-        # Only skip if we didn't consume WASD keys - this prevents camera movement
-        if not wasd_consumed:
+        # Do not propagate when selection movement keys were handled.
+        # This keeps cursor movement mouse-only in Select mode.
+        if not moved_selection and not wasd_consumed:
             evt.Skip()
 
     def _rotate_offset(self, offset: Tuple[int, int, int]) -> Tuple[int, int, int]:
@@ -535,55 +586,82 @@ class SelectTool(wx.BoxSizer, DefaultBaseToolUI):
             z2 + oz,
         )
 
+    def _move_all(self, offset: Tuple[int, int, int]):
+        ox, oy, oz = offset
+        selection_group = self._selection.selection_group
+        if not selection_group:
+            return
+
+        moved_selection_group = SelectionGroup(
+            SelectionBox(
+                (box.min[0] + ox, box.min[1] + oy, box.min[2] + oz),
+                (box.max[0] + ox, box.max[1] + oy, box.max[2] + oz),
+            )
+            for box in selection_group.selection_boxes
+        )
+        self._selection.selection_group = moved_selection_group
+        self._selection.push_selection()
+
     def _rotate_selection_box(self, axis: str, direction: int):
         p1, p2 = self._selection.active_block_positions
 
-        min_block = numpy.array((
+        min_block = (
             min(p1[0], p2[0]),
             min(p1[1], p2[1]),
             min(p1[2], p2[2]),
-        ), dtype=float)
-        max_block = numpy.array((
+        )
+        max_block = (
             max(p1[0], p2[0]),
             max(p1[1], p2[1]),
             max(p1[2], p2[2]),
-        ), dtype=float)
+        )
 
         min_corner = min_block
-        max_corner = max_block + 1
-        center = (min_corner + max_corner) / 2
+        max_corner = (max_block[0] + 1, max_block[1] + 1, max_block[2] + 1)
 
-        corners = numpy.array(
-            [
-                [x, y, z]
-                for x in (min_corner[0], max_corner[0])
-                for y in (min_corner[1], max_corner[1])
-                for z in (min_corner[2], max_corner[2])
-            ],
-            dtype=float,
+        center2 = (
+            min_corner[0] + max_corner[0],
+            min_corner[1] + max_corner[1],
+            min_corner[2] + max_corner[2],
         )
-        rel = corners - center
 
-        if axis == "x":
-            if direction > 0:
-                rel = numpy.column_stack((rel[:, 0], rel[:, 2], -rel[:, 1]))
-            else:
-                rel = numpy.column_stack((rel[:, 0], -rel[:, 2], rel[:, 1]))
-        elif axis == "y":
-            if direction > 0:
-                rel = numpy.column_stack((rel[:, 2], rel[:, 1], -rel[:, 0]))
-            else:
-                rel = numpy.column_stack((-rel[:, 2], rel[:, 1], rel[:, 0]))
-        else:
-            return
+        transformed_corners = []
+        for x in (min_corner[0], max_corner[0]):
+            for y in (min_corner[1], max_corner[1]):
+                for z in (min_corner[2], max_corner[2]):
+                    rx2 = 2 * x - center2[0]
+                    ry2 = 2 * y - center2[1]
+                    rz2 = 2 * z - center2[2]
 
-        rotated = rel + center
-        new_min_corner = numpy.rint(rotated.min(axis=0)).astype(int)
-        new_max_corner = numpy.rint(rotated.max(axis=0)).astype(int)
+                    if axis == "x":
+                        if direction > 0:
+                            nrx2, nry2, nrz2 = rx2, rz2, -ry2
+                        else:
+                            nrx2, nry2, nrz2 = rx2, -rz2, ry2
+                    elif axis == "y":
+                        if direction > 0:
+                            nrx2, nry2, nrz2 = rz2, ry2, -rx2
+                        else:
+                            nrx2, nry2, nrz2 = -rz2, ry2, rx2
+                    else:
+                        return
 
-        new_p1 = tuple(new_min_corner.tolist())
-        new_p2 = tuple((new_max_corner - 1).tolist())
-        self._selection.active_block_positions = new_p1, new_p2
+                    nx = (nrx2 + center2[0]) // 2
+                    ny = (nry2 + center2[1]) // 2
+                    nz = (nrz2 + center2[2]) // 2
+                    transformed_corners.append((nx, ny, nz))
+
+        min_x = min(point[0] for point in transformed_corners)
+        min_y = min(point[1] for point in transformed_corners)
+        min_z = min(point[2] for point in transformed_corners)
+        max_x = max(point[0] for point in transformed_corners)
+        max_y = max(point[1] for point in transformed_corners)
+        max_z = max(point[2] for point in transformed_corners)
+
+        self._selection.active_block_positions = (
+            (min_x, min_y, min_z),
+            (max_x - 1, max_y - 1, max_z - 1),
+        )
 
     def _on_resize(self, evt):
         self._resize()

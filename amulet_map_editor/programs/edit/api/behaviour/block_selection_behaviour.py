@@ -6,6 +6,7 @@ from wx.lib import newevent
 
 from ..events import (
     InputPressEvent,
+    InputHeldEvent,
     InputReleaseEvent,
     EVT_INPUT_RELEASE,
     EVT_SELECTION_CHANGE,
@@ -25,6 +26,9 @@ from .pointer_behaviour import PointerBehaviour
 from ..key_config import (
     ACT_BOX_CLICK,
     ACT_BOX_CLICK_ADD,
+    ACT_BOX_CLICK_KEY,
+    ACT_CLEAR_START_HIGHLIGHT_BOX_ACTION,
+    ACT_BOX_CLICK_ADD_KEY,
     ACT_INCR_SELECT_DISTANCE,
     ACT_DECR_SELECT_DISTANCE,
     ACT_DESELECT_ALL_BOXES,
@@ -162,13 +166,30 @@ class BlockSelectionBehaviour(PointerBehaviour):
             else:
                 self._pointer_distance -= 1
             self._pointer_moved = True
-        elif evt.action_id == ACT_BOX_CLICK:
+        elif evt.action_id in (
+            ACT_BOX_CLICK,
+            ACT_BOX_CLICK_KEY,
+            ACT_CLEAR_START_HIGHLIGHT_BOX_ACTION,
+            ACT_BOX_CLICK_ADD,
+            ACT_BOX_CLICK_ADD_KEY,
+        ):
+            if (
+                evt.action_id == ACT_BOX_CLICK_ADD_KEY
+                and ACT_BOX_CLICK_KEY in self.canvas.buttons.pressed_actions
+            ):
+                evt.Skip()
+                return
+
             if not self._editing:
                 default_create = True
                 self._press_time = time.time()
                 self._disable_inputs()
 
-                if ACT_BOX_CLICK_ADD in self.canvas.buttons.pressed_actions:
+                is_add = evt.action_id in (ACT_BOX_CLICK_ADD, ACT_BOX_CLICK_ADD_KEY)
+                if evt.action_id == ACT_BOX_CLICK:
+                    is_add = ACT_BOX_CLICK_ADD in self.canvas.buttons.pressed_actions
+
+                if is_add:
                     # create a new box
                     if self._active_selection is not None:
                         # move the existing active to the inactive
@@ -244,6 +265,9 @@ class BlockSelectionBehaviour(PointerBehaviour):
                     self._escape()
         evt.Skip()
 
+    def _on_input_held(self, evt: InputHeldEvent):
+        evt.Skip()
+
     def _on_key_press(self, evt: wx.KeyEvent):
         key = evt.GetUnicodeKey() or evt.GetKeyCode()
         if key == wx.WXK_ESCAPE:
@@ -251,8 +275,14 @@ class BlockSelectionBehaviour(PointerBehaviour):
         evt.Skip()
 
     def _on_input_release(self, evt: InputReleaseEvent):
-        if evt.action_id == ACT_BOX_CLICK:
-            if self._editing and time.time() - self._press_time > 0.1:
+        if evt.action_id in (
+            ACT_BOX_CLICK,
+            ACT_BOX_CLICK_KEY,
+            ACT_CLEAR_START_HIGHLIGHT_BOX_ACTION,
+            ACT_BOX_CLICK_ADD,
+            ACT_BOX_CLICK_ADD_KEY,
+        ):
+            if self._editing:
                 self._editing = self._resizing = False
                 self._enable_inputs()
                 self._active_selection.locked = True
@@ -392,7 +422,17 @@ class BlockSelectionBehaviour(PointerBehaviour):
         # find the closest box position
         # find the closest box or block position
         if self._pointer_moved:
-            if self.canvas.camera.projection_mode == Projection.TOP_DOWN:
+            if self._manual_cursor_mode:
+                (
+                    camera,
+                    look_vector,
+                    selection_group,
+                    box_index,
+                    max_distance,
+                ) = self._get_default_box_hit_data()
+                location = numpy.array(self._manual_cursor_pos)
+                hit_block = True
+            elif self.canvas.camera.projection_mode == Projection.TOP_DOWN:
                 camera = self.canvas.camera.location
                 camera = (camera[0], 10**9, camera[2])
                 look_vector = self.look_vector()

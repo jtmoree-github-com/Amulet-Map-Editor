@@ -18,6 +18,7 @@ from amulet_map_editor.api.wx.util.key_config import (
     PageUp,
     PageDown,
     Space,
+    Return,
     F1,
     F2,
     F3,
@@ -70,6 +71,10 @@ ACT_LOOK_UP = "ACT_LOOK_UP"
 ACT_LOOK_DOWN = "ACT_LOOK_DOWN"
 ACT_LOOK_LEFT = "ACT_LOOK_LEFT"
 ACT_LOOK_RIGHT = "ACT_LOOK_RIGHT"
+ACT_ROTATE_CURSOR_UP = "ACT_ROTATE_CURSOR_UP"
+ACT_ROTATE_CURSOR_DOWN = "ACT_ROTATE_CURSOR_DOWN"
+ACT_ROTATE_CURSOR_LEFT = "ACT_ROTATE_CURSOR_LEFT"
+ACT_ROTATE_CURSOR_RIGHT = "ACT_ROTATE_CURSOR_RIGHT"
 ACT_CURSOR_UP = "ACT_CURSOR_UP"
 ACT_CURSOR_DOWN = "ACT_CURSOR_DOWN"
 ACT_CURSOR_FORWARDS = "ACT_CURSOR_FORWARDS"
@@ -92,6 +97,9 @@ ACT_FOCUS_PASTE_DIALOG = "ACT_FOCUS_PASTE_DIALOG"
 ACT_TOGGLE_WASD_MODE = "ACT_TOGGLE_WASD_MODE"
 ACT_BOX_CLICK = "ACT_BOX_CLICK"
 ACT_BOX_CLICK_ADD = "ACT_BOX_CLICK_ADD"
+ACT_BOX_CLICK_KEY = "ACT_BOX_CLICK_KEY"
+ACT_CLEAR_START_HIGHLIGHT_BOX_ACTION = "ACT_CLEAR_START_HIGHLIGHT_BOX_ACTION"
+ACT_BOX_CLICK_ADD_KEY = "ACT_BOX_CLICK_ADD_KEY"
 ACT_CHANGE_MOUSE_MODE = "ACT_CHANGE_MOUSE_MODE"
 ACT_INCR_SPEED = "ACT_INCR_SPEED"
 ACT_DECR_SPEED = "ACT_DECR_SPEED"
@@ -105,8 +113,11 @@ ACT_INSPECT_BLOCK = "ACT_INSPECT_BLOCK"
 ACT_CHANGE_PROJECTION = "ACT_CHANGE_PROJECTION"
 ACT_TOGGLE_FULLSCREEN = "ACT_TOGGLE_FULLSCREEN"
 ACT_MOVE_CAMERA_TO_CURSOR = "ACT_MOVE_CAMERA_TO_CURSOR"
+ACT_TELEPORT_CURSOR_TO_CAMERA = "ACT_TELEPORT_CURSOR_TO_CAMERA"
 ACT_HELP = "ACT_HELP"
 ACT_SAVE_ALL = "ACT_SAVE_ALL"
+ACT_SAVE_ALL_CLOSE = "ACT_SAVE_ALL_CLOSE"
+ACT_QUIT_WITHOUT_SAVE = "ACT_QUIT_WITHOUT_SAVE"
 
 # Keyboard-only action keys (no mouse buttons/wheel)
 KeyboardKeys: List[KeyActionType] = [
@@ -120,6 +131,10 @@ KeyboardKeys: List[KeyActionType] = [
     ACT_LOOK_DOWN,
     ACT_LOOK_LEFT,
     ACT_LOOK_RIGHT,
+    ACT_ROTATE_CURSOR_UP,
+    ACT_ROTATE_CURSOR_DOWN,
+    ACT_ROTATE_CURSOR_LEFT,
+    ACT_ROTATE_CURSOR_RIGHT,
     ACT_CURSOR_UP,
     ACT_CURSOR_DOWN,
     ACT_CURSOR_FORWARDS,
@@ -139,6 +154,9 @@ KeyboardKeys: List[KeyActionType] = [
     ACT_SWITCH_TO_CHUNK_MODE,
     ACT_TOGGLE_MOVE_TARGET,
     ACT_TOGGLE_WASD_MODE,
+    ACT_BOX_CLICK_KEY,
+    ACT_CLEAR_START_HIGHLIGHT_BOX_ACTION,
+    ACT_BOX_CLICK_ADD_KEY,
     ACT_INCR_SPEED,
     ACT_DECR_SPEED,
     ACT_ZOOM_IN,
@@ -150,8 +168,11 @@ KeyboardKeys: List[KeyActionType] = [
     ACT_CHANGE_PROJECTION,
     ACT_TOGGLE_FULLSCREEN,
     ACT_MOVE_CAMERA_TO_CURSOR,
+    ACT_TELEPORT_CURSOR_TO_CAMERA,
     ACT_HELP,
     ACT_SAVE_ALL,
+    ACT_SAVE_ALL_CLOSE,
+    ACT_QUIT_WITHOUT_SAVE,
 ]
 
 # Mouse-related action keys
@@ -181,6 +202,10 @@ PresetKeybinds: KeybindContainer = {
         ACT_LOOK_DOWN: ((Alt,), S),
         ACT_LOOK_LEFT: ((Alt,), A),
         ACT_LOOK_RIGHT: ((Alt,), D),
+        ACT_ROTATE_CURSOR_UP: ((Alt,), Up),
+        ACT_ROTATE_CURSOR_DOWN: ((Alt,), Down),
+        ACT_ROTATE_CURSOR_LEFT: ((Alt,), Left),
+        ACT_ROTATE_CURSOR_RIGHT: ((Alt,), Right),
         ACT_CURSOR_UP: ((), PageUp),
         ACT_CURSOR_DOWN: ((), PageDown),
         ACT_CURSOR_FORWARDS: ((), Up),
@@ -201,8 +226,71 @@ PresetKeybinds: KeybindContainer = {
         ACT_TOGGLE_FULLSCREEN: ((), F11),
         ACT_SWITCH_TO_CHUNK_MODE: ((), F12),
         ACT_SAVE_ALL: ((Control, Shift), S),
-        ACT_TOGGLE_MOVE_TARGET: ((), BACKTICK),
+        ACT_SAVE_ALL_CLOSE: ((Control, Shift), Q),
+        ACT_QUIT_WITHOUT_SAVE: ((Control, Alt, Shift), Q),
+        ACT_TOGGLE_MOVE_TARGET: ((), C),
         ACT_TOGGLE_WASD_MODE: ((Alt,), T),
+        ACT_CLEAR_START_HIGHLIGHT_BOX_ACTION: ((), B),
+        ACT_BOX_CLICK_KEY: ((Shift,), B),
+        ACT_BOX_CLICK_ADD_KEY: ((), Return),
+        ACT_BOX_CLICK: ((), MouseRight),
+        ACT_BOX_CLICK_ADD: ((Control,), MouseRight),
+        ACT_CHANGE_MOUSE_MODE: ((), MouseLeft),
+        ACT_INCR_SPEED: ((), MouseWheelScrollUp),
+        ACT_DECR_SPEED: ((), MouseWheelScrollDown),
+        ACT_ZOOM_IN: ((), MouseWheelScrollUp),
+        ACT_ZOOM_OUT: ((), MouseWheelScrollDown),
+        ACT_INCR_SELECT_DISTANCE: ((), R),
+        ACT_DECR_SELECT_DISTANCE: ((), F),
+        ACT_DESELECT_ALL_BOXES: ((Control, Shift), D),
+        ACT_DESELECT_BOX: ((Control,), D),
+        ACT_INSPECT_BLOCK: ((Alt,), MouseLeft),
+        ACT_CHANGE_PROJECTION: ((), BACKTICK),
+        ACT_MOVE_CAMERA_TO_CURSOR: ((Shift, Control), G),
+        ACT_TELEPORT_CURSOR_TO_CAMERA: ((Alt, Control), G),
+    },
+    "left": {
+        ACT_MOVE_UP: ((), E),
+        ACT_MOVE_DOWN: ((), X),
+        ACT_MOVE_FORWARDS: ((), I),
+        ACT_MOVE_BACKWARDS: ((), K),
+        ACT_MOVE_LEFT: ((), J),
+        ACT_MOVE_RIGHT: ((), L),
+        ACT_LOOK_UP: ((Alt,), W),
+        ACT_LOOK_DOWN: ((Alt,), S),
+        ACT_LOOK_LEFT: ((Alt,), A),
+        ACT_LOOK_RIGHT: ((Alt,), D),
+        ACT_ROTATE_CURSOR_UP: ((Alt,), Up),
+        ACT_ROTATE_CURSOR_DOWN: ((Alt,), Down),
+        ACT_ROTATE_CURSOR_LEFT: ((Alt,), Left),
+        ACT_ROTATE_CURSOR_RIGHT: ((Alt,), Right),
+        ACT_CURSOR_UP: ((), PageUp),
+        ACT_CURSOR_DOWN: ((), PageDown),
+        ACT_CURSOR_FORWARDS: ((), Up),
+        ACT_CURSOR_BACKWARDS: ((), Down),
+        ACT_CURSOR_LEFT: ((), Left),
+        ACT_CURSOR_RIGHT: ((), Right),
+        ACT_PASTE: ((Control,), V),
+        ACT_HELP: ((), F1),
+        ACT_SWITCH_TO_SELECT_MODE: ((), F2),
+        ACT_SWITCH_TO_PASTE_MODE: ((), F3),
+        ACT_SWITCH_TO_CLONE_MODE: ((), F4),
+        ACT_SWITCH_TO_REPLACE_MODE: ((), F5),
+        ACT_SWITCH_TO_FILL_MODE: ((), F6),
+        ACT_SWITCH_TO_WATERLOG_MODE: ((), F7),
+        ACT_SWITCH_TO_BIOME_MODE: ((), F8),
+        ACT_SWITCH_TO_EXPORT_MODE: ((), F9),
+        ACT_SWITCH_TO_IMPORT_MODE: ((), F10),
+        ACT_TOGGLE_FULLSCREEN: ((), F11),
+        ACT_SWITCH_TO_CHUNK_MODE: ((), F12),
+        ACT_SAVE_ALL: ((Control, Shift), S),
+        ACT_SAVE_ALL_CLOSE: ((Control, Shift), Q),
+        ACT_QUIT_WITHOUT_SAVE: ((Control, Alt, Shift), Q),
+        ACT_TOGGLE_MOVE_TARGET: ((), C),
+        ACT_TOGGLE_WASD_MODE: ((Alt,), T),
+        ACT_CLEAR_START_HIGHLIGHT_BOX_ACTION: ((), B),
+        ACT_BOX_CLICK_KEY: ((Shift,), B),
+        ACT_BOX_CLICK_ADD_KEY: ((), Return),
         ACT_BOX_CLICK: ((), MouseLeft),
         ACT_BOX_CLICK_ADD: ((Control,), MouseLeft),
         ACT_CHANGE_MOUSE_MODE: ((), MouseRight),
@@ -215,56 +303,9 @@ PresetKeybinds: KeybindContainer = {
         ACT_DESELECT_ALL_BOXES: ((Control, Shift), D),
         ACT_DESELECT_BOX: ((Control,), D),
         ACT_INSPECT_BLOCK: ((Alt,), MouseRight),
-        ACT_CHANGE_PROJECTION: ((Control,), T),
-        ACT_MOVE_CAMERA_TO_CURSOR: ((Control, Shift), G),
-    },
-    "left": {
-        ACT_MOVE_UP: ((), E),
-        ACT_MOVE_DOWN: ((), X),
-        ACT_MOVE_FORWARDS: ((), I),
-        ACT_MOVE_BACKWARDS: ((), K),
-        ACT_MOVE_LEFT: ((), J),
-        ACT_MOVE_RIGHT: ((), L),
-        ACT_LOOK_UP: ((Alt,), I),
-        ACT_LOOK_DOWN: ((Alt,), K),
-        ACT_LOOK_LEFT: ((Alt,), J),
-        ACT_LOOK_RIGHT: ((Alt,), L),
-        ACT_CURSOR_UP: ((), PageUp),
-        ACT_CURSOR_DOWN: ((), PageDown),
-        ACT_CURSOR_FORWARDS: ((), Up),
-        ACT_CURSOR_BACKWARDS: ((), Down),
-        ACT_CURSOR_LEFT: ((), Left),
-        ACT_CURSOR_RIGHT: ((), Right),
-        ACT_PASTE: ((Control,), V),
-        ACT_HELP: ((), F1),
-        ACT_SWITCH_TO_SELECT_MODE: ((), F2),
-        ACT_SWITCH_TO_PASTE_MODE: ((), F3),
-        ACT_SWITCH_TO_CLONE_MODE: ((), F4),
-        ACT_SWITCH_TO_REPLACE_MODE: ((), F5),
-        ACT_SWITCH_TO_FILL_MODE: ((), F6),
-        ACT_SWITCH_TO_WATERLOG_MODE: ((), F7),
-        ACT_SWITCH_TO_BIOME_MODE: ((), F8),
-        ACT_SWITCH_TO_EXPORT_MODE: ((), F9),
-        ACT_SWITCH_TO_IMPORT_MODE: ((), F10),
-        ACT_TOGGLE_FULLSCREEN: ((), F11),
-        ACT_SWITCH_TO_CHUNK_MODE: ((), F12),
-        ACT_SAVE_ALL: ((Control, Shift), S),
-        ACT_TOGGLE_MOVE_TARGET: ((), BACKTICK),
-        ACT_TOGGLE_WASD_MODE: ((Alt,), T),
-        ACT_BOX_CLICK: ((), MouseLeft),
-        ACT_BOX_CLICK_ADD: ((Control,), MouseLeft),
-        ACT_CHANGE_MOUSE_MODE: ((), MouseRight),
-        ACT_INCR_SPEED: ((), MouseWheelScrollUp),
-        ACT_DECR_SPEED: ((), MouseWheelScrollDown),
-        ACT_ZOOM_IN: ((), MouseWheelScrollUp),
-        ACT_ZOOM_OUT: ((), MouseWheelScrollDown),
-        ACT_INCR_SELECT_DISTANCE: ((), Y),
-        ACT_DECR_SELECT_DISTANCE: ((), H),
-        ACT_DESELECT_ALL_BOXES: ((Control, Shift), D),
-        ACT_DESELECT_BOX: ((Control,), D),
-        ACT_INSPECT_BLOCK: ((Alt,), MouseRight),
-        ACT_CHANGE_PROJECTION: ((Control,), T),
-        ACT_MOVE_CAMERA_TO_CURSOR: ((Control, Shift), G),
+        ACT_CHANGE_PROJECTION: ((), BACKTICK),
+        ACT_MOVE_CAMERA_TO_CURSOR: ((Shift, Control), G),
+        ACT_TELEPORT_CURSOR_TO_CAMERA: ((Alt, Control), G),
     },
 }
 
@@ -289,6 +330,9 @@ ActionGroups = OrderedDict([
         ACT_CHANGE_PROJECTION,
         ACT_TOGGLE_WASD_MODE,
         ACT_MOVE_CAMERA_TO_CURSOR,
+        ACT_TELEPORT_CURSOR_TO_CAMERA,
+        ACT_SAVE_ALL_CLOSE,
+        ACT_QUIT_WITHOUT_SAVE,
     ]),
     ("camera", [
         ACT_CHANGE_MOUSE_MODE,
@@ -310,6 +354,10 @@ ActionGroups = OrderedDict([
         ACT_CURSOR_BACKWARDS,
         ACT_CURSOR_LEFT,
         ACT_CURSOR_RIGHT,
+        ACT_ROTATE_CURSOR_UP,
+        ACT_ROTATE_CURSOR_DOWN,
+        ACT_ROTATE_CURSOR_LEFT,
+        ACT_ROTATE_CURSOR_RIGHT,
     ]),
     ("2d", [
         ACT_ZOOM_IN,
@@ -320,6 +368,9 @@ ActionGroups = OrderedDict([
         ACT_DECR_SPEED,
     ]),
     ("select_mode", [
+        ACT_CLEAR_START_HIGHLIGHT_BOX_ACTION,
+        ACT_BOX_CLICK_KEY,
+        ACT_BOX_CLICK_ADD_KEY,
         ACT_BOX_CLICK,
         ACT_BOX_CLICK_ADD,
         ACT_TOGGLE_MOVE_TARGET,
@@ -376,6 +427,9 @@ KeyboardActionGroups = OrderedDict([
         ACT_CHANGE_PROJECTION,
         ACT_TOGGLE_WASD_MODE,
         ACT_MOVE_CAMERA_TO_CURSOR,
+        ACT_TELEPORT_CURSOR_TO_CAMERA,
+        ACT_SAVE_ALL_CLOSE,
+        ACT_QUIT_WITHOUT_SAVE,
     ]),
     ("camera", [
         ACT_MOVE_UP,
@@ -400,8 +454,15 @@ KeyboardActionGroups = OrderedDict([
         ACT_CURSOR_BACKWARDS,
         ACT_CURSOR_LEFT,
         ACT_CURSOR_RIGHT,
+        ACT_ROTATE_CURSOR_UP,
+        ACT_ROTATE_CURSOR_DOWN,
+        ACT_ROTATE_CURSOR_LEFT,
+        ACT_ROTATE_CURSOR_RIGHT,
     ]),
     ("select_mode", [
+        ACT_CLEAR_START_HIGHLIGHT_BOX_ACTION,
+        ACT_BOX_CLICK_KEY,
+        ACT_BOX_CLICK_ADD_KEY,
         ACT_TOGGLE_MOVE_TARGET,
         ACT_DESELECT_ALL_BOXES,
         ACT_DESELECT_BOX,

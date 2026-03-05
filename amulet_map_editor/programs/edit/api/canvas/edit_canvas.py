@@ -10,13 +10,17 @@ from threading import RLock, Thread
 from .base_edit_canvas import BaseEditCanvas
 from ...edit import EDIT_CONFIG_ID
 from ..key_config import (
-    DefaultKeys,
     DefaultKeybindGroupId,
-    PresetKeybinds,
+    KeyboardPresets,
+    MousePresets,
     KeybindGroup,
+    KeyboardKeys,
+    MouseKeys,
     ACT_PASTE,
     ACT_HELP,
     ACT_SAVE_ALL,
+    ACT_SAVE_ALL_CLOSE,
+    ACT_QUIT_WITHOUT_SAVE,
     ACT_SWITCH_TO_SELECT_MODE,
     ACT_SWITCH_TO_PASTE_MODE,
     ACT_SWITCH_TO_FILL_MODE,
@@ -29,12 +33,37 @@ from ..key_config import (
     ACT_SWITCH_TO_CHUNK_MODE,
     ACT_TOGGLE_FULLSCREEN,
     ACT_MOVE_CAMERA_TO_CURSOR,
+    ACT_TELEPORT_CURSOR_TO_CAMERA,
+    ACT_BOX_CLICK_KEY,
+    ACT_CLEAR_START_HIGHLIGHT_BOX_ACTION,
+    ACT_BOX_CLICK_ADD_KEY,
+    ACT_BOX_CLICK,
+    ACT_BOX_CLICK_ADD,
+    ACT_TOGGLE_MOVE_TARGET,
+    ACT_DESELECT_ALL_BOXES,
+    ACT_DESELECT_BOX,
+    ACT_INSPECT_BLOCK,
+    ACT_INCR_SELECT_DISTANCE,
+    ACT_DECR_SELECT_DISTANCE,
     ACT_INCR_SPEED,
     ACT_DECR_SPEED,
     ACT_ZOOM_IN,
     ACT_ZOOM_OUT,
     DOT,
     COMMA,
+    Alt,
+    Up,
+    Down,
+    Left,
+    Right,
+    W,
+    A,
+    S,
+    D,
+    ACT_LOOK_UP,
+    ACT_LOOK_DOWN,
+    ACT_LOOK_LEFT,
+    ACT_LOOK_RIGHT,
 )
 
 import time
@@ -49,7 +78,7 @@ from amulet_map_editor import close_level
 from amulet_map_editor.api.wx.ui.traceback_dialog import TracebackDialog
 from amulet_map_editor.programs.edit.api.ui.goto import show_goto
 from amulet_map_editor.programs.edit.api.ui.tool_manager import ToolManagerSizer
-from amulet_map_editor.programs.edit.plugins.tools import PasteTool
+from amulet_map_editor.programs.edit.plugins.tools import PasteTool, SelectTool
 from amulet_map_editor.programs.edit.api.operations.errors import (
     OperationError,
     OperationSilentAbort,
@@ -79,6 +108,18 @@ if TYPE_CHECKING:
 
 log = logging.getLogger(__name__)
 OperationType = Callable[[], OperationReturnType]
+
+
+SELECT_MODE_ACTIONS = {
+    ACT_CLEAR_START_HIGHLIGHT_BOX_ACTION,
+    ACT_BOX_CLICK_KEY,
+    ACT_BOX_CLICK_ADD_KEY,
+    ACT_TOGGLE_MOVE_TARGET,
+    ACT_DESELECT_ALL_BOXES,
+    ACT_DESELECT_BOX,
+    ACT_INCR_SELECT_DISTANCE,
+    ACT_DECR_SELECT_DISTANCE,
+}
 
 
 def show_loading_dialog(
@@ -225,6 +266,12 @@ class EditCanvas(BaseEditCanvas):
         self.Bind(EVT_EDIT_CLOSE, self._on_close)
 
     def _on_input_press(self, evt: InputPressEvent):
+        if (
+            evt.action_id in SELECT_MODE_ACTIONS
+            and not isinstance(self._tool_sizer._active_tool, SelectTool)
+        ):
+            wx.PostEvent(self, ToolChangeEvent(tool="Select"))
+
         if evt.action_id == ACT_HELP:
             webbrowser.open(
                 "https://github.com/Amulet-Team/Amulet-Map-Editor/blob/master/amulet_map_editor/programs/edit/readme.md"
@@ -263,20 +310,40 @@ class EditCanvas(BaseEditCanvas):
                 parent.ShowFullScreen(True)
         elif evt.action_id == ACT_MOVE_CAMERA_TO_CURSOR:
             self._move_camera_to_selection_cursor()
+        elif evt.action_id == ACT_TELEPORT_CURSOR_TO_CAMERA:
+            self._teleport_selection_cursor_to_camera()
         elif evt.action_id == ACT_SAVE_ALL:
             self._save_all_worlds()
+        elif evt.action_id == ACT_SAVE_ALL_CLOSE:
+            self._save_all_worlds()
+            close_level(self.world.level_path)
+        elif evt.action_id == ACT_QUIT_WITHOUT_SAVE:
+            top_level_parent = self.GetTopLevelParent()
+            if top_level_parent is not None:
+                top_level_parent.Destroy()
         evt.Skip()
 
-    def _move_camera_to_selection_cursor(self):
+    def _get_selection_center_and_size(self):
         selection_group = self.selection.selection_group
-
         if selection_group and selection_group.selection_boxes:
-            selection_box = selection_group.selection_boxes[-1]
-            target_x = (selection_box.min[0] + selection_box.max[0]) / 2
-            target_y = (selection_box.min[1] + selection_box.max[1]) / 2
-            target_z = (selection_box.min[2] + selection_box.max[2]) / 2
-        else:
-            target_x = target_y = target_z = 0.0
+            min_x = min(box.min[0] for box in selection_group.selection_boxes)
+            min_y = min(box.min[1] for box in selection_group.selection_boxes)
+            min_z = min(box.min[2] for box in selection_group.selection_boxes)
+            max_x = max(box.max[0] for box in selection_group.selection_boxes)
+            max_y = max(box.max[1] for box in selection_group.selection_boxes)
+            max_z = max(box.max[2] for box in selection_group.selection_boxes)
+            center_x = (min_x + max_x) / 2
+            center_y = (min_y + max_y) / 2
+            center_z = (min_z + max_z) / 2
+            size = (max_x - min_x, max_y - min_y, max_z - min_z)
+            return (center_x, center_y, center_z), size
+        return None, (0, 0, 0)
+
+    def _move_camera_to_selection_cursor(self):
+        target, size = self._get_selection_center_and_size()
+        if target is None:
+            return
+        target_x, target_y, target_z = target
 
         yaw, pitch = self.camera.rotation
         yaw_radians = math.radians(yaw)
@@ -286,12 +353,43 @@ class EditCanvas(BaseEditCanvas):
         forward_y = -math.sin(pitch_radians)
         forward_z = math.cos(yaw_radians) * math.cos(pitch_radians)
 
-        standoff_distance = 8.0
+        largest_axis = max(size)
+        standoff_distance = max(8.0, largest_axis * 1.25)
         camera_x = target_x - forward_x * standoff_distance
         camera_y = target_y - forward_y * standoff_distance
         camera_z = target_z - forward_z * standoff_distance
 
         self.camera.location = (camera_x, camera_y, camera_z)
+
+    def _teleport_selection_cursor_to_camera(self):
+        selection_group = self.selection.selection_group
+        camera_x, camera_y, camera_z = self.camera.location
+        target_x = int(round(camera_x))
+        target_y = int(round(camera_y))
+        target_z = int(round(camera_z))
+
+        if not selection_group or not selection_group.selection_boxes:
+            self.selection.selection_corners = [
+                ((target_x, target_y, target_z), (target_x + 1, target_y + 1, target_z + 1))
+            ]
+            return
+
+        center, _ = self._get_selection_center_and_size()
+        if center is None:
+            return
+
+        offset_x = target_x - int(round(center[0]))
+        offset_y = target_y - int(round(center[1]))
+        offset_z = target_z - int(round(center[2]))
+
+        translated_corners = [
+            (
+                (box.min[0] + offset_x, box.min[1] + offset_y, box.min[2] + offset_z),
+                (box.max[0] + offset_x, box.max[1] + offset_y, box.max[2] + offset_z),
+            )
+            for box in selection_group.selection_boxes
+        ]
+        self.selection.selection_corners = translated_corners
 
     def _save_all_worlds(self):
         """Save all open worlds in the notebook."""
@@ -341,14 +439,60 @@ class EditCanvas(BaseEditCanvas):
     @property
     def key_binds(self) -> KeybindGroup:
         config_ = CONFIG.get(EDIT_CONFIG_ID, {})
-        user_keybinds = config_.get("user_keybinds", {})
-        group = config_.get("keybind_group", DefaultKeybindGroupId)
-        if group in user_keybinds:
-            return user_keybinds[group]
-        elif group in PresetKeybinds:
-            return PresetKeybinds[group]
-        else:
-            return DefaultKeys
+        keyboard_group = config_.get(
+            "keyboard_keybind_group",
+            config_.get("keybind_group", DefaultKeybindGroupId),
+        )
+        mouse_group = config_.get(
+            "mouse_keybind_group",
+            config_.get("keybind_group", DefaultKeybindGroupId),
+        )
+
+        user_keyboard_keybinds = config_.get(
+            "user_keyboard_keybinds",
+            {
+                group_id: {
+                    action: key
+                    for action, key in group.items()
+                    if action in KeyboardKeys
+                }
+                for group_id, group in config_.get("user_keybinds", {}).items()
+            },
+        )
+        user_mouse_keybinds = config_.get(
+            "user_mouse_keybinds",
+            {
+                group_id: {
+                    action: key
+                    for action, key in group.items()
+                    if action in MouseKeys
+                }
+                for group_id, group in config_.get("user_keybinds", {}).items()
+            },
+        )
+
+        keyboard_defaults = KeyboardPresets.get(keyboard_group, {})
+        mouse_defaults = MousePresets.get(mouse_group, {})
+
+        keyboard_keybinds = {
+            **keyboard_defaults,
+            **user_keyboard_keybinds.get(keyboard_group, {}),
+        }
+        mouse_keybinds = {
+            **mouse_defaults,
+            **user_mouse_keybinds.get(mouse_group, {}),
+        }
+
+        camera_look_bindings = {
+            ACT_LOOK_UP: ((Alt,), W),
+            ACT_LOOK_DOWN: ((Alt,), S),
+            ACT_LOOK_LEFT: ((Alt,), A),
+            ACT_LOOK_RIGHT: ((Alt,), D),
+        }
+
+        keyboard_keybinds.update(camera_look_bindings)
+
+        return {**keyboard_keybinds, **mouse_keybinds}
 
     def _deselect(self):
         # TODO: Re-implement this

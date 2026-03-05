@@ -176,9 +176,6 @@ class AmuletUI(wx.Frame):
             lambda evt: self.open_world_select_tab(),
         )
         # menu_dict.setdefault(lang.get('menu_bar.file.menu_name'), {}).setdefault('system', {}).setdefault('Create World', lambda: self.world.save())
-        menu_dict.setdefault(lang.get("menu_bar.file.menu_name"), {}).setdefault(
-            "exit", {}
-        ).setdefault(f"&{lang.get('menu_bar.file.quit')}\tCtrl+Q", lambda evt: self.Close())
         menu_dict = self._level_notebook.extend_menu(menu_dict)
         menu_bar = wx.MenuBar()
         for menu_name, menu_data in menu_dict.items():

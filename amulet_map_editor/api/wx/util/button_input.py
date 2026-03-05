@@ -222,18 +222,18 @@ class ButtonInput(WindowContainer):
                     keybind,
                 )
 
-    def _find_actions(self, key: KeyType) -> Tuple[ActionIDType, ...]:
+    def _find_actions(
+        self, key: KeyType, pressed_keys: Set[KeyType] = None
+    ) -> Tuple[ActionIDType, ...]:
         """A method to find all actions triggered by `key` with the modifier keys also pressed."""
-        # Get the currently pressed modifier keys
-        pressed_modifiers = self._pressed_keys & MODIFIER_KEYS
-        
+        if pressed_keys is None:
+            pressed_keys = self._pressed_keys
         return tuple(
             action_id
             for action_id, action_bindings in self._registered_actions.items()
             if any(
                 action.trigger_key == key
-                and action.modifier_keys.issubset(self._pressed_keys)
-                and action.modifier_keys == pressed_modifiers  # Exact modifier match
+                and action.modifier_keys.issubset(pressed_keys)
                 for action in action_bindings
             )
         )
@@ -244,7 +244,15 @@ class ButtonInput(WindowContainer):
         if key is None:
             return
         if not self.is_key_pressed(key):
-            action_ids = self._find_actions(key)
+            active_keys = self._pressed_keys.copy()
+            if hasattr(evt, "ControlDown") and evt.ControlDown():
+                active_keys.add(Control)
+            if hasattr(evt, "ShiftDown") and evt.ShiftDown():
+                active_keys.add(Shift)
+            if hasattr(evt, "AltDown") and evt.AltDown():
+                active_keys.add(Alt)
+
+            action_ids = self._find_actions(key, active_keys)
             self._continuous_actions.update(action_ids)
             for action_id in action_ids:
                 wx.PostEvent(self.window, InputPressEvent(action_id))

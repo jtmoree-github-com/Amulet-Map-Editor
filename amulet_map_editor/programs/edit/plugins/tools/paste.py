@@ -29,6 +29,10 @@ from amulet_map_editor.api.opengl.camera import Projection
 from amulet_map_editor.api.opengl.mesh.level import RenderLevel
 from amulet_map_editor.programs.edit.api.key_config import (
     ACT_BOX_CLICK,
+    ACT_ROTATE_CURSOR_UP,
+    ACT_ROTATE_CURSOR_DOWN,
+    ACT_ROTATE_CURSOR_LEFT,
+    ACT_ROTATE_CURSOR_RIGHT,
     ACT_CURSOR_UP,
     ACT_CURSOR_DOWN,
     ACT_CURSOR_FORWARDS,
@@ -522,15 +526,21 @@ class PasteTool(wx.BoxSizer, DefaultBaseToolUI):
         self._paste_panel.Enable()
         self._is_enabled = True
         self._mouse_grabbed = False
-        
-        # Force-refresh pointer so first paste does not use the default (0, 0, 0)
-        self._cursor._manual_cursor_mode = False
-        self._cursor._pointer_moved = True
-        self._cursor._update_pointer()
 
-        # Get current pointer position
-        current_pos = self._cursor.pointer_base
-        paste_location = tuple(current_pos.tolist())
+        camera_x, camera_y, camera_z = self.canvas.camera.location
+        yaw, pitch = self.canvas.camera.rotation
+        yaw_rad = math.radians(yaw)
+        pitch_rad = math.radians(pitch)
+
+        forward_x = math.cos(pitch_rad) * math.sin(yaw_rad)
+        forward_y = -math.sin(pitch_rad)
+        forward_z = math.cos(pitch_rad) * math.cos(yaw_rad)
+
+        paste_location = (
+            int(round(camera_x + forward_x * 5)),
+            int(round(camera_y + forward_y * 5 - 2)),
+            int(round(camera_z + forward_z * 5)),
+        )
         
         # Clear and add the structure with the correct location
         self.canvas.renderer.fake_levels.clear()
@@ -682,7 +692,31 @@ class PasteTool(wx.BoxSizer, DefaultBaseToolUI):
             self._location.x.SetFocus()
         elif self._is_enabled and evt.action_id == ACT_TOGGLE_WASD_MODE:
             self.canvas.wasd_moves_cursor = not self.canvas.wasd_moves_cursor
+        elif self._is_enabled and evt.action_id == ACT_ROTATE_CURSOR_UP:
+            self._rotate_axis("x", 1)
+        elif self._is_enabled and evt.action_id == ACT_ROTATE_CURSOR_DOWN:
+            self._rotate_axis("x", -1)
+        elif self._is_enabled and evt.action_id == ACT_ROTATE_CURSOR_LEFT:
+            self._rotate_axis("y", -1)
+        elif self._is_enabled and evt.action_id == ACT_ROTATE_CURSOR_RIGHT:
+            self._rotate_axis("y", 1)
         evt.Skip()
+
+    def _rotate_axis(self, axis: str, direction: int):
+        angle = math.radians(90 * direction)
+        if axis == "x":
+            rotation_change = rotation_matrix_xyz(angle, 0, 0)
+        elif axis == "y":
+            rotation_change = rotation_matrix_xyz(0, angle, 0)
+        else:
+            return
+
+        self._rotation.value = numpy.rad2deg(
+            decompose_transformation_matrix(
+                numpy.matmul(rotation_change, rotation_matrix_xyz(*self._rotation_radians()))
+            )[1]
+        )
+        self._update_transform()
 
     def _on_panel_char_hook(self, evt: wx.KeyEvent):
         if (

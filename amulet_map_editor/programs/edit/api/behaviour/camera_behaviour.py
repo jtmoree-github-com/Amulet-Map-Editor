@@ -107,20 +107,22 @@ class CameraBehaviour(BaseBehaviour):
     def _on_input_held(self, evt: InputHeldEvent):
         """Logic to run each time the input held event is run."""
         forward = up = right = pitch = yaw = 0
+        look_active = any(
+            action in evt.action_ids
+            for action in (ACT_LOOK_UP, ACT_LOOK_DOWN, ACT_LOOK_LEFT, ACT_LOOK_RIGHT)
+        )
         
         # Only process keyboard movement if WASD is not set to move cursor
-        if not self.canvas.wasd_moves_cursor:
+        if not self.canvas.wasd_moves_cursor and not look_active:
             up += (ACT_MOVE_UP in evt.action_ids) - (ACT_MOVE_DOWN in evt.action_ids)
             forward += (ACT_MOVE_FORWARDS in evt.action_ids) - (
                 ACT_MOVE_BACKWARDS in evt.action_ids
             )
             right += (ACT_MOVE_RIGHT in evt.action_ids) - (ACT_MOVE_LEFT in evt.action_ids)
         
-        # Handle keyboard camera rotation (Alt + WASD) only when WASD controls camera.
-        if not self.canvas.wasd_moves_cursor:
-            # Use 2.0 as base multiplier, which gets scaled by rotate_speed in move_camera_relative
-            pitch += ((ACT_LOOK_DOWN in evt.action_ids) - (ACT_LOOK_UP in evt.action_ids)) * 2.0
-            yaw += ((ACT_LOOK_RIGHT in evt.action_ids) - (ACT_LOOK_LEFT in evt.action_ids)) * 2.0
+        # Handle keyboard camera rotation (Alt + WASD).
+        pitch += ((ACT_LOOK_DOWN in evt.action_ids) - (ACT_LOOK_UP in evt.action_ids)) * 2.0
+        yaw += ((ACT_LOOK_RIGHT in evt.action_ids) - (ACT_LOOK_LEFT in evt.action_ids)) * 2.0
 
         if self.canvas.camera.projection_mode == Projection.PERSPECTIVE:
             if self.canvas.camera.rotating:

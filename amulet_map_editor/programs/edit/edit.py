@@ -37,6 +37,7 @@ from amulet_map_editor.programs.edit.api.key_config import (
     COMMA,
 )
 from amulet_map_editor.api import config, image
+from amulet_map_editor import close_level
 
 if TYPE_CHECKING:
     from amulet.api.level import World
@@ -226,8 +227,14 @@ class EditExtension(wx.Panel, BaseProgram):
         menu.setdefault(lang.get("menu_bar.file.menu_name"), {}).setdefault(
             "system", {}
         ).setdefault(
-            f"&{lang.get('program_3d_edit.menu_bar.file.preferences')}\tCtrl+P",
-            lambda evt: self._edit_preferences(),
+            f"{lang.get('action.act_save_all_close')}\tCtrl+Shift+Q",
+            lambda evt: self._save_all_and_close(),
+        )
+        menu.setdefault(lang.get("menu_bar.file.menu_name"), {}).setdefault(
+            "exit", {}
+        ).setdefault(
+            f"{lang.get('action.act_quit_without_save')}\tCtrl+Alt+Shift+Q",
+            lambda evt: self._quit_without_save(),
         )
         # menu.setdefault(lang.get('menu_bar.file.menu_name'), {}).setdefault('system', {}).setdefault('Save As', lambda evt: self.GetGrandParent().close_world(self.world.world_path))
 
@@ -265,12 +272,20 @@ class EditExtension(wx.Panel, BaseProgram):
             lang.get("program_3d_edit.menu_bar.navigation.menu_name"), {}
         ).setdefault("navigation", {}).update(
             {
-                f"{lang.get('program_3d_edit.menu_bar.navigation.toggle_projection')}\tCtrl+T": lambda evt: self._toggle_projection(),
+                f"{lang.get('program_3d_edit.menu_bar.navigation.toggle_projection')}\t`": lambda evt: self._toggle_projection(),
                 f"{lang.get('program_3d_edit.menu_bar.navigation.toggle_camera_cursor')}\tAlt+T": lambda evt: self._toggle_wasd_mode(),
-                f"{lang.get('program_3d_edit.menu_bar.navigation.goto')}\tCtrl+g": lambda evt: self._canvas.goto(),
+                f"{lang.get('program_3d_edit.menu_bar.navigation.goto')}\tCtrl+G": lambda evt: self._canvas.goto(),
+                f"{lang.get('action.act_move_camera_to_cursor')}\tCtrl+Shift+G": lambda evt: self._canvas._move_camera_to_selection_cursor(),
+                f"{lang.get('action.act_teleport_cursor_to_camera')}\tCtrl+Alt+G": lambda evt: self._canvas._teleport_selection_cursor_to_camera(),
             }
         )
 
+        menu.setdefault(lang.get("menu_bar.options.menu_name"), {}).setdefault(
+            "options", {}
+        ).setdefault(
+            f"&{lang.get('program_3d_edit.menu_bar.file.preferences')}\tCtrl+P",
+            lambda evt: self._edit_preferences(),
+        )
         menu.setdefault(lang.get("menu_bar.options.menu_name"), {}).setdefault(
             "options", {}
         ).setdefault(
@@ -297,6 +312,16 @@ class EditExtension(wx.Panel, BaseProgram):
         )
         return menu
 
+    def _save_all_and_close(self):
+        if self._canvas is not None:
+            self._canvas._save_all_worlds()
+        close_level(self._world.level_path)
+
+    def _quit_without_save(self):
+        top_level_parent = self.GetTopLevelParent()
+        if top_level_parent is not None:
+            top_level_parent.Destroy()
+
     def _toggle_projection(self):
         """Toggle between perspective and top-down projection."""
         from amulet_map_editor.api.opengl.camera import Projection
@@ -312,15 +337,22 @@ class EditExtension(wx.Panel, BaseProgram):
 
     def _edit_controls(self):
         edit_config = config.get(EDIT_CONFIG_ID, {})
-        keybind_id = edit_config.get("keybind_group", DefaultKeybindGroupId)
-        user_keybinds = edit_config.get("user_keybinds", {})
-        fixed_keybinds = {
-            group_id: {
-                **MousePresets.get(group_id, {}),
-                **KeyboardPresets.get(group_id, {}),
-            }
-            for group_id in set(KeyboardPresets) | set(MousePresets)
-        }
+        keybind_id = edit_config.get(
+            "keyboard_keybind_group",
+            edit_config.get("keybind_group", DefaultKeybindGroupId),
+        )
+        user_keybinds = edit_config.get(
+            "user_keyboard_keybinds",
+            {
+                group_id: {
+                    action: key
+                    for action, key in group.items()
+                    if action in KeyboardKeys
+                }
+                for group_id, group in edit_config.get("user_keybinds", {}).items()
+            },
+        )
+        fixed_keybinds = KeyboardPresets
         key_config = KeyConfigDialog(
             self,
             keybind_id,
@@ -330,18 +362,33 @@ class EditExtension(wx.Panel, BaseProgram):
             KeyboardActionGroups,
             require_mouse_action=False,
         )
+        key_config.SetTitle(lang.get("program_3d_edit.dialog.keyboard_mappings_title"))
         if key_config.ShowModal() == wx.ID_OK:
             user_keybinds, keybind_id, keybinds = key_config.options
-            edit_config["user_keybinds"] = user_keybinds
-            edit_config["keybind_group"] = keybind_id
+            edit_config["user_keyboard_keybinds"] = user_keybinds
+            edit_config["keyboard_keybind_group"] = keybind_id
             config.put(EDIT_CONFIG_ID, edit_config)
             # Register both keyboard and mouse bindings
             self._canvas.buttons.clear_registered_actions()
-            # Get mouse bindings for this preset
-            if keybind_id in user_keybinds:
-                mouse_keybinds = {k: v for k, v in user_keybinds[keybind_id].items() if k in MouseKeys}
+            mouse_keybind_id = edit_config.get(
+                "mouse_keybind_group",
+                edit_config.get("keybind_group", DefaultKeybindGroupId),
+            )
+            user_mouse_keybinds = edit_config.get(
+                "user_mouse_keybinds",
+                {
+                    group_id: {
+                        action: key
+                        for action, key in group.items()
+                        if action in MouseKeys
+                    }
+                    for group_id, group in edit_config.get("user_keybinds", {}).items()
+                },
+            )
+            if mouse_keybind_id in user_mouse_keybinds:
+                mouse_keybinds = user_mouse_keybinds[mouse_keybind_id]
             else:
-                mouse_keybinds = MousePresets.get(keybind_id, {})
+                mouse_keybinds = MousePresets.get(mouse_keybind_id, {})
             # Combine keyboard and mouse bindings
             combined_keybinds = {**keybinds, **mouse_keybinds}
             self._canvas.buttons.register_actions(combined_keybinds)
@@ -353,20 +400,27 @@ class EditExtension(wx.Panel, BaseProgram):
     def _edit_mouse_control(self):
         if self._canvas is not None:
             edit_config = config.get(EDIT_CONFIG_ID, {})
-            keybind_id = edit_config.get("keybind_group", DefaultKeybindGroupId)
-            user_keybinds = edit_config.get("user_keybinds", {})
-            fixed_keybinds = {
-                group_id: {
-                    **KeyboardPresets.get(group_id, {}),
-                    **MousePresets.get(group_id, {}),
-                }
-                for group_id in set(KeyboardPresets) | set(MousePresets)
-            }
+            keybind_id = edit_config.get(
+                "mouse_keybind_group",
+                edit_config.get("keybind_group", DefaultKeybindGroupId),
+            )
+            user_keybinds = edit_config.get(
+                "user_mouse_keybinds",
+                {
+                    group_id: {
+                        action: key
+                        for action, key in group.items()
+                        if action in MouseKeys
+                    }
+                    for group_id, group in edit_config.get("user_keybinds", {}).items()
+                },
+            )
+            fixed_keybinds = MousePresets
 
             # Show mouse keybind configuration
             dialog = wx.Dialog(
                 self,
-                title=lang.get("program_3d_edit.menu_bar.options.mouse_control"),
+                title=lang.get("program_3d_edit.dialog.mouse_mappings_title"),
                 style=wx.CAPTION
                 | wx.CLOSE_BOX
                 | wx.MAXIMIZE_BOX
@@ -403,18 +457,31 @@ class EditExtension(wx.Panel, BaseProgram):
 
             if dialog.ShowModal() == wx.ID_OK:
                 user_keybinds, keybind_id, mouse_keybinds = key_config.options
-                edit_config["user_keybinds"] = user_keybinds
-                edit_config["keybind_group"] = keybind_id
+                edit_config["user_mouse_keybinds"] = user_keybinds
+                edit_config["mouse_keybind_group"] = keybind_id
                 config.put(EDIT_CONFIG_ID, edit_config)
 
                 # Register both keyboard and mouse bindings
                 self._canvas.buttons.clear_registered_actions()
-                if keybind_id in user_keybinds:
-                    keyboard_keybinds = {
-                        k: v for k, v in user_keybinds[keybind_id].items() if k in KeyboardKeys
-                    }
+                keyboard_keybind_id = edit_config.get(
+                    "keyboard_keybind_group",
+                    edit_config.get("keybind_group", DefaultKeybindGroupId),
+                )
+                user_keyboard_keybinds = edit_config.get(
+                    "user_keyboard_keybinds",
+                    {
+                        group_id: {
+                            action: key
+                            for action, key in group.items()
+                            if action in KeyboardKeys
+                        }
+                        for group_id, group in edit_config.get("user_keybinds", {}).items()
+                    },
+                )
+                if keyboard_keybind_id in user_keyboard_keybinds:
+                    keyboard_keybinds = user_keyboard_keybinds[keyboard_keybind_id]
                 else:
-                    keyboard_keybinds = KeyboardPresets.get(keybind_id, {})
+                    keyboard_keybinds = KeyboardPresets.get(keyboard_keybind_id, {})
                 combined_keybinds = {**keyboard_keybinds, **mouse_keybinds}
                 self._canvas.buttons.register_actions(combined_keybinds)
                 self._canvas.buttons.register_action(ACT_INCR_SPEED, tuple(), DOT)
