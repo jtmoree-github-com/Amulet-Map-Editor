@@ -51,10 +51,16 @@ from amulet_map_editor.programs.edit.api.key_config import (
 from amulet_map_editor.programs.edit.api.operations import OperationSuccessful
 from amulet_map_editor.programs.edit.api.ui.tool import DefaultBaseToolUI
 from amulet_map_editor.programs.edit.api.behaviour import StaticSelectionBehaviour
+from amulet_map_editor.programs.edit.api.behaviour.static_selection_behaviour import (
+    ClipStaticSelectionGroup,
+)
 from amulet_map_editor.programs.edit.api.behaviour.pointer_behaviour import (
     PointerBehaviour,
     EVT_POINT_CHANGE,
     PointChangeEvent,
+)
+from amulet_map_editor.api.opengl.mesh.selection.box.render_selection_pointer import (
+    RenderSelectionPointer,
 )
 from amulet_map_editor.programs.edit.api.events import (
     InputPressEvent,
@@ -257,8 +263,14 @@ class PasteTool(wx.BoxSizer, DefaultBaseToolUI):
         wx.BoxSizer.__init__(self, wx.HORIZONTAL)
         DefaultBaseToolUI.__init__(self, canvas)
 
-        self._selection = StaticSelectionBehaviour(self.canvas)
-        self._cursor = PointerBehaviour(self.canvas)
+        self._selection = StaticSelectionBehaviour(
+            self.canvas, selection_group_cls=ClipStaticSelectionGroup
+        )
+        self._cursor = PointerBehaviour(
+            self.canvas,
+            render_selection_cls=RenderSelectionPointer,
+            allow_keyboard_control=False,
+        )
         self._is_enabled = False
         self._mouse_grabbed = False
 
@@ -548,11 +560,6 @@ class PasteTool(wx.BoxSizer, DefaultBaseToolUI):
             structure, dimension, paste_location, (1, 1, 1), (0, 0, 0)
         )
         
-        # Now enable manual cursor mode and sync positions
-        self._cursor._manual_cursor_mode = True
-        self._cursor._manual_cursor_pos = list(paste_location)
-        self._cursor._pointer_moved = True
-        
         # Update UI to show the location
         self._location.value = paste_location
 
@@ -563,9 +570,6 @@ class PasteTool(wx.BoxSizer, DefaultBaseToolUI):
         self._mouse_grabbed = False
         self.canvas.renderer.fake_levels.clear()
         self._paste_panel.Hide()
-        
-        # Exit manual cursor mode
-        self._cursor._manual_cursor_mode = False
 
     @property
     def location(self) -> PointCoordinates:
@@ -578,11 +582,6 @@ class PasteTool(wx.BoxSizer, DefaultBaseToolUI):
         Will update the UI and the renderer."""
         self._location.value = location
         self._update_transform()
-        
-        # Update manual cursor position to match paste location (use actual UI values)
-        if self._cursor._manual_cursor_mode:
-            self._cursor._manual_cursor_pos = list(self._location.value)
-            self._cursor._pointer_moved = True
 
     def _on_free_rotation_change(self, evt):
         if self._free_rotation.GetValue():
@@ -678,12 +677,8 @@ class PasteTool(wx.BoxSizer, DefaultBaseToolUI):
         if self._is_enabled and evt.action_id == ACT_BOX_CLICK:
             if self._mouse_grabbed:
                 self._mouse_grabbed = False
-                self._cursor._manual_cursor_mode = True
-                self._cursor._manual_cursor_pos = list(self.location)
-                self._cursor._pointer_moved = True
             else:
                 self._mouse_grabbed = True
-                self._cursor._manual_cursor_mode = False
                 self._cursor._pointer_moved = True
                 self._cursor._update_pointer()
                 self.location = tuple(self._cursor.pointer_base.tolist())
@@ -840,17 +835,9 @@ class PasteTool(wx.BoxSizer, DefaultBaseToolUI):
 
         if any((x, y, z)):
             self._mouse_grabbed = False
-            self._cursor._manual_cursor_mode = True
-            self._cursor._manual_cursor_pos = list(self.location)
             ox, oy, oz = self._rotate_offset((x, y, z))
             lx, ly, lz = self.location
             self.location = lx + ox, ly + oy, lz + oz
-            
-            # Update manual cursor position to match paste location
-            self._cursor._manual_cursor_pos[0] += ox
-            self._cursor._manual_cursor_pos[1] += oy
-            self._cursor._manual_cursor_pos[2] += oz
-            self._cursor._pointer_moved = True
 
         # Only skip if we didn't consume WASD keys - this prevents camera movement
         if not wasd_consumed:
@@ -935,4 +922,5 @@ class PasteTool(wx.BoxSizer, DefaultBaseToolUI):
         self.canvas.renderer.draw_level()
         self.canvas.renderer.draw_fake_levels()
         self._selection.draw()
+        self._cursor.draw()
         self.canvas.renderer.end_draw()

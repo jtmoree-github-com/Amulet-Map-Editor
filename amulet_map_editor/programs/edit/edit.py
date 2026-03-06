@@ -33,16 +33,48 @@ from amulet_map_editor.programs.edit.api.key_config import (
     ACT_DECR_SPEED,
     ACT_ZOOM_IN,
     ACT_ZOOM_OUT,
+    ACT_SAVE_ALL,
+    ACT_SAVE_ALL_CLOSE,
+    ACT_QUIT_WITHOUT_SAVE,
+    ACT_PASTE,
+    ACT_DESELECT_BOX,
+    ACT_DESELECT_ALL_BOXES,
+    ACT_CHANGE_PROJECTION,
+    ACT_TOGGLE_WASD_MODE,
+    ACT_MOVE_CAMERA_TO_CURSOR,
+    ACT_TELEPORT_CURSOR_TO_CAMERA,
+    ACT_HELP,
     DOT,
     COMMA,
 )
 from amulet_map_editor.api import config, image
+from amulet_map_editor.api.opengl.mesh.selection.box.colours import colours as selection_colours
 from amulet_map_editor import close_level
 
 if TYPE_CHECKING:
     from amulet.api.level import World
 
 log = logging.getLogger(__name__)
+
+_BOX_COLOUR_KEYS = {
+    "mouse_cursor": "box_pointer",
+    "clipboard_static": ("box_clip_static", "box_paste_static"),
+    "point1": "box_point1",
+    "point2": "box_point2",
+    "moving_object": ("box_clipboard", "box_highlight_move"),
+    "edge": "box_edge",
+    "corner": "box_corner",
+}
+
+_BOX_COLOUR_DEFAULTS = {
+    "mouse_cursor": tuple(selection_colours.get("box_pointer", selection_colours.get("box_normal", (1.0, 1.0, 1.0)))),
+    "clipboard_static": tuple(selection_colours.get("box_clip_static", selection_colours.get("box_paste_static", (1.0, 1.0, 1.0)))),
+    "point1": tuple(selection_colours.get("box_point1", (0.0, 1.0, 0.0))),
+    "point2": tuple(selection_colours.get("box_point2", (1.0, 0.5, 0.85))),
+    "moving_object": tuple(selection_colours.get("box_clipboard", selection_colours.get("box_highlight_move", (1.0, 0.7, 0.3)))),
+    "edge": tuple(selection_colours.get("box_edge", (0.5, 1.0, 1.0))),
+    "corner": tuple(selection_colours.get("box_corner", (1.0, 1.0, 0.5))),
+}
 
 
 class EditExtension(wx.Panel, BaseProgram):
@@ -143,6 +175,7 @@ class EditExtension(wx.Panel, BaseProgram):
             self._canvas.camera.rotate_speed = edit_config.get("options", {}).get(
                 "camera_sensitivity", 2.0
             )
+            self._apply_box_colour_preferences(edit_config.get("options", {}))
 
             self._temp_msg = None
             self._temp_loading_bar = None
@@ -156,6 +189,33 @@ class EditExtension(wx.Panel, BaseProgram):
         except Exception as e:
             wx.CallAfter(self._display_error, str(e), traceback.format_exc())
             raise e
+
+    @staticmethod
+    def _colour_pref_to_float(pref_value, default):
+        if (
+            isinstance(pref_value, (list, tuple))
+            and len(pref_value) == 3
+            and all(isinstance(v, (int, float)) for v in pref_value)
+        ):
+            if all(0 <= v <= 1 for v in pref_value):
+                return tuple(float(v) for v in pref_value)
+            if all(0 <= v <= 255 for v in pref_value):
+                return tuple(float(v) / 255.0 for v in pref_value)
+        return default
+
+    def _apply_box_colour_preferences(self, options: dict):
+        box_colours = options.get("box_colours", {}) if isinstance(options, dict) else {}
+        for pref_key, colour_keys in _BOX_COLOUR_KEYS.items():
+            default_colour = _BOX_COLOUR_DEFAULTS[pref_key]
+            pref_value = box_colours.get(pref_key)
+            if pref_key == "moving_object" and pref_value is None:
+                pref_value = box_colours.get("clipboard")
+
+            colour = self._colour_pref_to_float(pref_value, default_colour)
+            if isinstance(colour_keys, str):
+                colour_keys = (colour_keys,)
+            for colour_key in colour_keys:
+                selection_colours[colour_key] = colour
 
     def can_disable(self) -> bool:
         return self._setup_thread is None
@@ -227,13 +287,21 @@ class EditExtension(wx.Panel, BaseProgram):
         menu.setdefault(lang.get("menu_bar.file.menu_name"), {}).setdefault(
             "system", {}
         ).setdefault(
-            f"{lang.get('action.act_save_all_close')}\tCtrl+Shift+Q",
+            self._menu_label(
+                lang.get('action.act_save_all_close'),
+                ACT_SAVE_ALL_CLOSE,
+                "Ctrl+Shift+Q",
+            ),
             lambda evt: self._save_all_and_close(),
         )
         menu.setdefault(lang.get("menu_bar.file.menu_name"), {}).setdefault(
             "exit", {}
         ).setdefault(
-            f"{lang.get('action.act_quit_without_save')}\tCtrl+Alt+Shift+Q",
+            self._menu_label(
+                lang.get('action.act_quit_without_save'),
+                ACT_QUIT_WITHOUT_SAVE,
+                "Ctrl+Alt+Shift+Q",
+            ),
             lambda evt: self._quit_without_save(),
         )
         # menu.setdefault(lang.get('menu_bar.file.menu_name'), {}).setdefault('system', {}).setdefault('Save As', lambda evt: self.GetGrandParent().close_world(self.world.world_path))
@@ -253,7 +321,11 @@ class EditExtension(wx.Panel, BaseProgram):
             {
                 f"{lang.get('program_3d_edit.menu_bar.edit.cut')}\tCtrl+x": lambda evt: self._canvas.cut(),
                 f"{lang.get('program_3d_edit.menu_bar.edit.copy')}\tCtrl+c": lambda evt: self._canvas.copy(),
-                f"{lang.get('program_3d_edit.menu_bar.edit.paste')}\tCtrl+v": lambda evt: self._canvas.paste_from_cache(),
+                self._menu_label(
+                    lang.get('program_3d_edit.menu_bar.edit.paste'),
+                    ACT_PASTE,
+                    "Ctrl+V",
+                ): lambda evt: self._canvas.paste_from_cache(),
                 f"{lang.get('program_3d_edit.menu_bar.edit.delete')}\tDelete": lambda evt: self._canvas.delete(),
             }
         )
@@ -262,8 +334,16 @@ class EditExtension(wx.Panel, BaseProgram):
             lang.get("program_3d_edit.menu_bar.edit.menu_name"), {}
         ).setdefault("shortcut", {}).update(
             {
-                f"{lang.get('program_3d_edit.menu_bar.edit.deselect')}\tCtrl+d": lambda evt: self._canvas._deselect(),
-                f"{lang.get('program_3d_edit.menu_bar.edit.deselect_all')}\tCtrl+Shift+d": lambda evt: self._canvas._deselect(),
+                self._menu_label(
+                    lang.get('program_3d_edit.menu_bar.edit.deselect'),
+                    ACT_DESELECT_BOX,
+                    "Ctrl+D",
+                ): lambda evt: self._canvas._deselect(),
+                self._menu_label(
+                    lang.get('program_3d_edit.menu_bar.edit.deselect_all'),
+                    ACT_DESELECT_ALL_BOXES,
+                    "Ctrl+Shift+D",
+                ): lambda evt: self._canvas._deselect(),
                 f"{lang.get('program_3d_edit.menu_bar.edit.select_all')}\tCtrl+A": lambda evt: self._canvas.select_all(),
             }
         )
@@ -272,11 +352,27 @@ class EditExtension(wx.Panel, BaseProgram):
             lang.get("program_3d_edit.menu_bar.navigation.menu_name"), {}
         ).setdefault("navigation", {}).update(
             {
-                f"{lang.get('program_3d_edit.menu_bar.navigation.toggle_projection')}\t`": lambda evt: self._toggle_projection(),
-                f"{lang.get('program_3d_edit.menu_bar.navigation.toggle_camera_cursor')}\tAlt+T": lambda evt: self._toggle_wasd_mode(),
+                self._menu_label(
+                    lang.get('program_3d_edit.menu_bar.navigation.toggle_projection'),
+                    ACT_CHANGE_PROJECTION,
+                    "`",
+                ): lambda evt: self._toggle_projection(),
+                self._menu_label(
+                    lang.get('program_3d_edit.menu_bar.navigation.toggle_camera_cursor'),
+                    ACT_TOGGLE_WASD_MODE,
+                    "T",
+                ): lambda evt: self._toggle_wasd_mode(),
                 f"{lang.get('program_3d_edit.menu_bar.navigation.goto')}\tCtrl+G": lambda evt: self._canvas.goto(),
-                f"{lang.get('action.act_move_camera_to_cursor')}\tCtrl+Shift+G": lambda evt: self._canvas._move_camera_to_selection_cursor(),
-                f"{lang.get('action.act_teleport_cursor_to_camera')}\tCtrl+Alt+G": lambda evt: self._canvas._teleport_selection_cursor_to_camera(),
+                self._menu_label(
+                    lang.get('action.act_move_camera_to_cursor'),
+                    ACT_MOVE_CAMERA_TO_CURSOR,
+                    "Ctrl+Shift+G",
+                ): lambda evt: self._canvas._move_camera_to_selection_cursor(),
+                self._menu_label(
+                    lang.get('action.act_teleport_cursor_to_camera'),
+                    ACT_TELEPORT_CURSOR_TO_CAMERA,
+                    "Ctrl+Alt+G",
+                ): lambda evt: self._canvas._teleport_selection_cursor_to_camera(),
             }
         )
 
@@ -307,10 +403,62 @@ class EditExtension(wx.Panel, BaseProgram):
         menu.setdefault(lang.get("menu_bar.help.menu_name"), {}).setdefault(
             "help", {}
         ).setdefault(
-            f"{lang.get('program_3d_edit.menu_bar.help.user_guide')}\\tF1",
+            self._menu_label(
+                lang.get('program_3d_edit.menu_bar.help.user_guide'),
+                ACT_HELP,
+                "F1",
+            ),
             lambda evt: self._help_controls(),
         )
         return menu
+
+    def _menu_label(self, text: str, action_id: Optional[str], fallback_hotkey: str) -> str:
+        hotkey = self._action_hotkey(action_id, fallback_hotkey)
+        return f"{text}\t{hotkey}" if hotkey else text
+
+    def _action_hotkey(self, action_id: Optional[str], fallback_hotkey: str) -> str:
+        if action_id and self._canvas is not None:
+            keybind = self._canvas.key_binds.get(action_id)
+            if keybind is not None:
+                return self._format_hotkey(keybind)
+        return fallback_hotkey
+
+    @staticmethod
+    def _format_hotkey(keybind) -> str:
+        modifiers, trigger = keybind
+        parts = [EditExtension._format_hotkey_part(modifier) for modifier in modifiers]
+        parts.append(EditExtension._format_hotkey_part(trigger))
+        return "+".join(parts)
+
+    @staticmethod
+    def _format_hotkey_part(part) -> str:
+        text = str(part)
+        replacements = {
+            "CTRL": "Ctrl",
+            "SHIFT": "Shift",
+            "ALT": "Alt",
+            "PAGE_UP": "PageUp",
+            "PAGE_DOWN": "PageDown",
+            "RETURN": "Enter",
+            "BACK": "Backspace",
+            "ESCAPE": "Esc",
+            "DELETE": "Delete",
+            "SPACE": "Space",
+            "TAB": "Tab",
+            "LEFT": "Left",
+            "RIGHT": "Right",
+            "UP": "Up",
+            "DOWN": "Down",
+        }
+        if text in replacements:
+            return replacements[text]
+        if len(text) == 1:
+            return text.upper()
+        if text.startswith("F") and text[1:].isdigit():
+            return text.upper()
+        if "_" in text:
+            return "".join(word.capitalize() for word in text.split("_"))
+        return text
 
     def _save_all_and_close(self):
         if self._canvas is not None:
@@ -547,8 +695,9 @@ class EditExtension(wx.Panel, BaseProgram):
 
     def _edit_preferences(self):
         edit_config: dict = config.get(EDIT_CONFIG_ID, {})
+        options = edit_config.get("options", {})
         recent_worlds_limit = (
-            edit_config.get("options", {}).get(
+            options.get(
                 "recent_worlds_limit", DEFAULT_RECENT_WORLDS_LIMIT
             )
         )
@@ -556,7 +705,8 @@ class EditExtension(wx.Panel, BaseProgram):
             recent_worlds_limit = DEFAULT_RECENT_WORLDS_LIMIT
 
         dialog = SimpleDialog(self, "Preferences")
-        sizer = wx.FlexGridSizer(1, 2, 0, 0)
+        sizer = wx.FlexGridSizer(0, 2, 0, 0)
+        sizer.AddGrowableCol(1, 1)
         dialog.sizer.Add(sizer, flag=wx.ALL, border=5)
 
         recent_worlds_limit_ui = wx.SpinCtrl(
@@ -573,6 +723,49 @@ class EditExtension(wx.Panel, BaseProgram):
             border=5,
         )
 
+        box_colours = options.get("box_colours", {}) if isinstance(options, dict) else {}
+
+        def add_colour_picker(label: str, pref_key: str, legacy_keys: tuple = ()): 
+            default_colour = _BOX_COLOUR_DEFAULTS[pref_key]
+            pref_value = box_colours.get(pref_key)
+            if pref_value is None:
+                for legacy_key in legacy_keys:
+                    pref_value = box_colours.get(legacy_key)
+                    if pref_value is not None:
+                        break
+            current_colour = self._colour_pref_to_float(
+                pref_value, default_colour
+            )
+            picker = wx.ColourPickerCtrl(
+                dialog,
+                colour=wx.Colour(
+                    int(current_colour[0] * 255),
+                    int(current_colour[1] * 255),
+                    int(current_colour[2] * 255),
+                ),
+            )
+            sizer.Add(
+                wx.StaticText(dialog, label=label),
+                flag=wx.LEFT | wx.TOP | wx.ALIGN_CENTER_VERTICAL | wx.EXPAND,
+                border=5,
+            )
+            sizer.Add(
+                picker,
+                flag=wx.LEFT | wx.TOP | wx.ALIGN_CENTER_VERTICAL | wx.EXPAND,
+                border=5,
+            )
+            return picker
+
+        mouse_cursor_picker = add_colour_picker("Mouse Cursor Color", "mouse_cursor")
+        clipboard_static_picker = add_colour_picker("Clipboard Color", "clipboard_static")
+        moving_object_picker = add_colour_picker(
+            "Moving Object", "moving_object", ("clipboard",)
+        )
+        point1_picker = add_colour_picker("Point 1 Color", "point1")
+        point2_picker = add_colour_picker("Point 2 Color", "point2")
+        edge_picker = add_colour_picker("Edge Color", "edge")
+        corner_picker = add_colour_picker("Corner Color", "corner")
+
         dialog.Fit()
 
         if dialog.ShowModal() == wx.ID_OK:
@@ -580,6 +773,44 @@ class EditExtension(wx.Panel, BaseProgram):
             edit_config["options"]["recent_worlds_limit"] = (
                 recent_worlds_limit_ui.GetValue()
             )
+            edit_config["options"]["box_colours"] = {
+                "mouse_cursor": [
+                    mouse_cursor_picker.GetColour().Red(),
+                    mouse_cursor_picker.GetColour().Green(),
+                    mouse_cursor_picker.GetColour().Blue(),
+                ],
+                "clipboard_static": [
+                    clipboard_static_picker.GetColour().Red(),
+                    clipboard_static_picker.GetColour().Green(),
+                    clipboard_static_picker.GetColour().Blue(),
+                ],
+                "point1": [
+                    point1_picker.GetColour().Red(),
+                    point1_picker.GetColour().Green(),
+                    point1_picker.GetColour().Blue(),
+                ],
+                "point2": [
+                    point2_picker.GetColour().Red(),
+                    point2_picker.GetColour().Green(),
+                    point2_picker.GetColour().Blue(),
+                ],
+                "moving_object": [
+                    moving_object_picker.GetColour().Red(),
+                    moving_object_picker.GetColour().Green(),
+                    moving_object_picker.GetColour().Blue(),
+                ],
+                "edge": [
+                    edge_picker.GetColour().Red(),
+                    edge_picker.GetColour().Green(),
+                    edge_picker.GetColour().Blue(),
+                ],
+                "corner": [
+                    corner_picker.GetColour().Red(),
+                    corner_picker.GetColour().Green(),
+                    corner_picker.GetColour().Blue(),
+                ],
+            }
+            self._apply_box_colour_preferences(edit_config["options"])
             config.put(EDIT_CONFIG_ID, edit_config)
 
     @staticmethod

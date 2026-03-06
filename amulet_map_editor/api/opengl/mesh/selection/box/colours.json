@@ -1,9 +1,12 @@
 {
 	"box_normal": [1.0, 1.0, 1.0],
+	"box_pointer": [0.72, 0.72, 0.72],
 	"box_highlight": [0.5, 0.5, 1.0],
 	"box_highlight_move": [1.0, 0.7, 0.3],
+	"box_clip_static": [1.0, 1.0, 1.0],
+	"box_paste_static": [1.0, 1.0, 1.0],
 	"box_edge": [0.5, 1.0, 1.0],
 	"box_corner": [1.0, 1.0, 0.5],
 	"box_point1": [0.0, 1.0, 0.0],
-	"box_point2": [0.0, 0.0, 1.0]
+	"box_point2": [1.0, 0.5, 0.85]
 }

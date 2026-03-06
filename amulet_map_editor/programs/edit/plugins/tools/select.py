@@ -13,6 +13,7 @@ from amulet.api.selection import SelectionGroup, SelectionBox
 from amulet.api.data_types import BlockCoordinates
 
 from amulet_map_editor import lang
+from amulet_map_editor.api.opengl.mesh.selection.box.colours import colours as selection_colours
 from amulet_map_editor.api.wx.ui.simple import SimpleScrollablePanel
 from amulet_map_editor.api.wx.util.validators import IntValidator
 from amulet_map_editor.api.opengl.camera import Projection, Camera
@@ -75,6 +76,30 @@ class SelectTool(wx.BoxSizer, DefaultBaseToolUI):
     _y2: wx.SpinCtrl
     _z2: wx.SpinCtrl
 
+    @staticmethod
+    def _selection_colour_to_rgb(colour_key: str, fallback: Tuple[float, float, float]) -> Tuple[int, int, int]:
+        colour = selection_colours.get(colour_key, fallback)
+        return tuple(max(0, min(255, int(round(float(component) * 255)))) for component in colour)
+
+    @staticmethod
+    def _mix_with_white(rgb: Tuple[int, int, int], white_ratio: float) -> Tuple[int, int, int]:
+        return tuple(
+            max(0, min(255, int(round(component * (1.0 - white_ratio) + 255 * white_ratio))))
+            for component in rgb
+        )
+
+    def _apply_point_ui_colours(self):
+        point1_colour = self._selection_colour_to_rgb("box_point1", (0.0, 1.0, 0.0))
+        point2_colour = self._selection_colour_to_rgb("box_point2", (0.0, 0.0, 1.0))
+
+        for ctrl in (self._x1, self._y1, self._z1):
+            ctrl.SetBackgroundColour(point1_colour)
+        for ctrl in (self._x2, self._y2, self._z2):
+            ctrl.SetBackgroundColour(point2_colour)
+
+        self._move_point1_radio.SetBackgroundColour(point1_colour)
+        self._move_point2_radio.SetBackgroundColour(point2_colour)
+
     def __init__(self, canvas: "EditCanvas"):
         wx.BoxSizer.__init__(self, wx.HORIZONTAL)
         DefaultBaseToolUI.__init__(self, canvas)
@@ -123,35 +148,40 @@ class SelectTool(wx.BoxSizer, DefaultBaseToolUI):
             lambda evt: self.canvas.paste_from_cache(),
         )
 
+        point1_colour = self._selection_colour_to_rgb("box_point1", (0.0, 1.0, 0.0))
+        point2_colour = self._selection_colour_to_rgb("box_point2", (0.0, 0.0, 1.0))
+        point1_input_colour = self._mix_with_white(point1_colour, 0.55)
+        point2_input_colour = self._mix_with_white(point2_colour, 0.55)
+
         self._x1 = self._add_spin_ctrl(
             lang.get("program_3d_edit.select_tool.scroll_point_x1"),
             lang.get("program_3d_edit.select_tool.scroll_point_x1_tooltip"),
-            (160, 215, 145),
+            point1_input_colour,
         )
         self._y1 = self._add_spin_ctrl(
             lang.get("program_3d_edit.select_tool.scroll_point_y1"),
             lang.get("program_3d_edit.select_tool.scroll_point_y1_tooltip"),
-            (160, 215, 145),
+            point1_input_colour,
         )
         self._z1 = self._add_spin_ctrl(
             lang.get("program_3d_edit.select_tool.scroll_point_z1"),
             lang.get("program_3d_edit.select_tool.scroll_point_z1_tooltip"),
-            (160, 215, 145),
+            point1_input_colour,
         )
         self._x2 = self._add_spin_ctrl(
             lang.get("program_3d_edit.select_tool.scroll_point_x2"),
             lang.get("program_3d_edit.select_tool.scroll_point_x2_tooltip"),
-            (150, 150, 215),
+            point2_input_colour,
         )
         self._y2 = self._add_spin_ctrl(
             lang.get("program_3d_edit.select_tool.scroll_point_y2"),
             lang.get("program_3d_edit.select_tool.scroll_point_y2_tooltip"),
-            (150, 150, 215),
+            point2_input_colour,
         )
         self._z2 = self._add_spin_ctrl(
             lang.get("program_3d_edit.select_tool.scroll_point_z2"),
             lang.get("program_3d_edit.select_tool.scroll_point_z2_tooltip"),
-            (150, 150, 215),
+            point2_input_colour,
         )
 
         self._box_size_selector_fstring = lang.get(
@@ -190,7 +220,9 @@ class SelectTool(wx.BoxSizer, DefaultBaseToolUI):
         self._move_point1_radio.SetToolTip(
             lang.get("program_3d_edit.select_tool.button_point1_tooltip")
         )
-        self._move_point1_radio.SetBackgroundColour((160, 215, 145))
+        self._move_point1_radio.SetBackgroundColour(
+            self._mix_with_white(point1_colour, 0.45)
+        )
         self._move_point1_radio.Disable()
         self._move_point1_radio.Bind(wx.EVT_RADIOBUTTON, self._on_move_target_change)
         self._move_point1_radio.Bind(wx.EVT_ENTER_WINDOW, self._on_tool_ui_hover)
@@ -203,7 +235,9 @@ class SelectTool(wx.BoxSizer, DefaultBaseToolUI):
         self._move_point2_radio.SetToolTip(
             lang.get("program_3d_edit.select_tool.button_point2_tooltip")
         )
-        self._move_point2_radio.SetBackgroundColour((150, 150, 215))
+        self._move_point2_radio.SetBackgroundColour(
+            self._mix_with_white(point2_colour, 0.45)
+        )
         self._move_point2_radio.Disable()
         self._move_point2_radio.Bind(wx.EVT_RADIOBUTTON, self._on_move_target_change)
         self._move_point2_radio.Bind(wx.EVT_ENTER_WINDOW, self._on_tool_ui_hover)
@@ -241,6 +275,7 @@ class SelectTool(wx.BoxSizer, DefaultBaseToolUI):
         self._button_panel.Bind(wx.EVT_ENTER_WINDOW, self._on_tool_ui_hover)
         self._button_panel.Bind(wx.EVT_CHAR_HOOK, self._on_panel_char_hook)
 
+        self._apply_point_ui_colours()
         self._resize()
     @property
     def name(self) -> str:
@@ -264,6 +299,7 @@ class SelectTool(wx.BoxSizer, DefaultBaseToolUI):
         current_projection = self.canvas.camera.projection_mode
         super().enable()
         self.canvas.camera.projection_mode = current_projection
+        self._apply_point_ui_colours()
         
         self._selection.enable()
         self._pull_selection()

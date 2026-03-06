@@ -1,5 +1,11 @@
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Type
 from amulet_map_editor.api.opengl.mesh.selection import RenderSelectionGroup
+from amulet_map_editor.api.opengl.mesh.selection.box.render_selection_clipboard import (
+    RenderSelectionClipboard,
+)
+from amulet_map_editor.api.opengl.mesh.selection.box.render_selection_paste_static import (
+    RenderSelectionPasteStatic,
+)
 from ..events import EVT_SELECTION_CHANGE
 
 from .base_behaviour import BaseBehaviour
@@ -9,12 +15,26 @@ if TYPE_CHECKING:
     from amulet_map_editor.programs.edit.api.canvas import EditCanvas
 
 
+class ClipboardSelectionGroup(RenderSelectionGroup):
+    def _new_render_selection(self):
+        return RenderSelectionClipboard(self.context_identifier, self.resource_pack)
+
+
+class ClipStaticSelectionGroup(RenderSelectionGroup):
+    def _new_render_selection(self):
+        return RenderSelectionPasteStatic(self.context_identifier, self.resource_pack)
+
+
 class StaticSelectionBehaviour(BaseBehaviour):
     """Adds the logic for a static selection."""
 
-    def __init__(self, canvas: "EditCanvas"):
+    def __init__(
+        self,
+        canvas: "EditCanvas",
+        selection_group_cls: Type[RenderSelectionGroup] = ClipboardSelectionGroup,
+    ):
         super().__init__(canvas)
-        self._selection = RenderSelectionGroup(
+        self._selection = selection_group_cls(
             self.canvas.context_identifier,
             self.canvas.renderer.opengl_resource_pack,
         )

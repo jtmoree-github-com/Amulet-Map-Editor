@@ -191,18 +191,18 @@ To navigate the main window using only the keyboard. There are tabs on top which
 - Ctrl+Shift+G again
 
 **Narration:**
-"The cursor is highlighting just one block.  In this version of Amulet I use a hotkey of Alt+T to toggle the movement of camera or cursor."
+"The cursor is highlighting just one block.  In this version of Amulet I use a hotkey of T to toggle the movement of camera or cursor."
 
 **Action:**
 - Move camera with WASD
-- Alt+T to toggle
+- T to toggle
 - Move cursor around with WASD
 
 **Narration:**
 "I have a departure from stock Amulet that could be added without breaking anything.  In this version I map the arrow keys and Page Up/Down to moving the cursor.  This allows us to move both the camera and cursor independently and at the same time with each hand."
 
 **Action:**
-- Alt+T to toggle back to camera mode
+- T to toggle back to camera mode
 - Move camera with WASD while simultaneously moving cursor with Arrow keys
 - Find something to copy such as a tree or patch of ground using the arrow keys and camera movement.
 
@@ -376,9 +376,9 @@ Use this checklist to ensure you capture all necessary shots for the demo video.
 - [ ] **Shot 6m:** Move up high into the air
 - [ ] **Shot 6n:** Press Ctrl+Shift+G to jump to cursor
 - [ ] **Shot 6o:** Use WASD to move camera
-- [ ] **Shot 6p:** Press Alt+T to toggle cursor movement mode
+- [ ] **Shot 6p:** Press T to toggle cursor movement mode
 - [ ] **Shot 6q:** Use WASD to move cursor instead of camera
-- [ ] **Shot 6r:** Press Alt+T again to toggle back
+- [ ] **Shot 6r:** Press T again to toggle back
 - [ ] **Shot 6s:** Use WASD and Arrow keys simultaneously to move camera and cursor
 
 ## Section 7: Selection Expansion with Keyboard (9:00–10:00)

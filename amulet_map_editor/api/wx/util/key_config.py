@@ -594,7 +594,7 @@ class KeyConfig(wx.BoxSizer):
             main_sizer.Add(wx.StaticLine(self._options), 0, wx.EXPAND | wx.ALL, 5)
 
         if self._show_misc:
-            self._add_misc_hotkeys(main_sizer)
+            self._add_misc_hotkeys(main_sizer, group)
             main_sizer.Add(wx.StaticLine(self._options), 0, wx.EXPAND | wx.ALL, 5)
         
         # Iterate through groups and add sections
@@ -750,7 +750,7 @@ class KeyConfig(wx.BoxSizer):
             ]
         return []
 
-    def _add_misc_hotkeys(self, main_sizer: wx.BoxSizer):
+    def _add_misc_hotkeys(self, main_sizer: wx.BoxSizer, group: KeybindGroup):
         heading = wx.StaticText(self._options, label="Common")
         font = heading.GetFont()
         font.PointSize += 2
@@ -758,31 +758,32 @@ class KeyConfig(wx.BoxSizer):
         heading.SetFont(font)
 
         misc_hotkeys = [
-            (lang.get("menu_bar.file.open_world"), "Ctrl+O"),
-            ("Close World / Quit", "Ctrl+Q"),
-            ("Quit Without Saving", "Ctrl+Alt+Shift+Q"),
-            (lang.get("program_3d_edit.menu_bar.file.save"), "Ctrl+S"),
-            ("Save All", "Ctrl+Shift+S"),
-            ("Save All and Quit", "Ctrl+Shift+Q"),
-            ("Next Tab in Current World", "Ctrl+Shift+Page Down"),
-            ("Previous Tab in Current World", "Ctrl+Shift+Page Up"),
-            ("Next World", "Ctrl+Page Down"),
-            ("Previous World", "Ctrl+Page Up"),
-            (lang.get("program_3d_edit.menu_bar.file.preferences"), "Ctrl+P"),
-            (lang.get("program_3d_edit.menu_bar.options.keyboard_controls"), "Ctrl+K"),
-            (lang.get("program_3d_edit.menu_bar.options.mouse_control"), "Ctrl+M"),
-            (lang.get("program_3d_edit.menu_bar.options.camera"), "Ctrl+I"),
-            (lang.get("program_3d_edit.menu_bar.edit.undo"), "Ctrl+Z"),
-            (lang.get("program_3d_edit.menu_bar.edit.redo"), "Ctrl+Y"),
-            (lang.get("program_3d_edit.menu_bar.edit.paste"), "Ctrl+V"),
-            (lang.get("program_3d_edit.menu_bar.edit.select_all"), "Ctrl+A"),
+            (lang.get("menu_bar.file.open_world"), "Ctrl+O", None),
+            ("Close World / Quit", "Ctrl+Q", None),
+            ("Quit Without Saving", "Ctrl+Alt+Shift+Q", "ACT_QUIT_WITHOUT_SAVE"),
+            (lang.get("program_3d_edit.menu_bar.file.save"), "Ctrl+S", None),
+            ("Save All", "Ctrl+Shift+S", "ACT_SAVE_ALL"),
+            ("Save All and Quit", "Ctrl+Shift+Q", "ACT_SAVE_ALL_CLOSE"),
+            ("Next Tab in Current World", "Ctrl+Shift+Page Down", None),
+            ("Previous Tab in Current World", "Ctrl+Shift+Page Up", None),
+            ("Next World", "Ctrl+Page Down", None),
+            ("Previous World", "Ctrl+Page Up", None),
+            (lang.get("program_3d_edit.menu_bar.file.preferences"), "Ctrl+P", None),
+            (lang.get("program_3d_edit.menu_bar.options.keyboard_controls"), "Ctrl+K", None),
+            (lang.get("program_3d_edit.menu_bar.options.mouse_control"), "Ctrl+M", None),
+            (lang.get("program_3d_edit.menu_bar.options.camera"), "Ctrl+I", None),
+            (lang.get("program_3d_edit.menu_bar.edit.undo"), "Ctrl+Z", None),
+            (lang.get("program_3d_edit.menu_bar.edit.redo"), "Ctrl+Y", None),
+            (lang.get("program_3d_edit.menu_bar.edit.paste"), "Ctrl+V", "ACT_PASTE"),
+            (lang.get("program_3d_edit.menu_bar.edit.select_all"), "Ctrl+A", None),
         ]
 
         grid_sizer = wx.FlexGridSizer(len(misc_hotkeys), 2, 5, 10)
         grid_sizer.AddGrowableCol(1, 1)
-        for label, hotkey in misc_hotkeys:
+        for label, fallback_hotkey, action_id in misc_hotkeys:
             # Strip ellipsis (...) from menu labels in this static display
             display_label = label.replace("...", "")
+            hotkey = self._group_hotkey(group, action_id, fallback_hotkey)
             hotkey_label = self._create_selectable_text(
                 format_key_display(hotkey),
                 bold=True,
@@ -807,6 +808,16 @@ class KeyConfig(wx.BoxSizer):
 
         main_sizer.Add(heading, 0, wx.LEFT | wx.BOTTOM, 5)
         main_sizer.Add(grid_sizer, 0, wx.ALL, 5)
+
+    def _group_hotkey(
+        self,
+        group: KeybindGroup,
+        action_id: Optional[str],
+        fallback_hotkey: str,
+    ) -> str:
+        if action_id is not None and action_id in group:
+            return stringify_key(group[action_id]).replace(" + ", "+")
+        return fallback_hotkey
 
     def _rebuild_ungrouped_options(self, group, editable: bool):
         """Rebuild options panel without grouping (original behavior)."""

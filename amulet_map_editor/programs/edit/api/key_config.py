@@ -46,6 +46,7 @@ K = "K"
 J = "J"
 L = "L"
 V = "V"
+P = "P"
 Q = "Q"
 R = "R"
 B = "B"
@@ -54,6 +55,8 @@ C = "C"
 G = "G"
 Y = "Y"
 H = "H"
+U = "U"
+M = "M"
 # Special character keys
 DOT = "."
 COMMA = ","
@@ -231,10 +234,10 @@ PresetKeybinds: KeybindContainer = {
         ACT_SAVE_ALL_CLOSE: ((Control, Shift), Q),
         ACT_QUIT_WITHOUT_SAVE: ((Control, Alt, Shift), Q),
         ACT_TOGGLE_MOVE_TARGET: ((), C),
-        ACT_TOGGLE_WASD_MODE: ((Alt,), T),
+        ACT_TOGGLE_WASD_MODE: ((), T),
         ACT_CLEAR_START_HIGHLIGHT_BOX_ACTION: ((), B),
         ACT_BOX_CLICK_KEY: ((Shift,), B),
-        ACT_BOX_CLICK_ADD_KEY: ((), Return),
+        ACT_BOX_CLICK_ADD_KEY: ((), V),
         ACT_BOX_CLICK: ((), MouseRight),
         ACT_BOX_CLICK_ADD: ((Control,), MouseRight),
         ACT_CHANGE_MOUSE_MODE: ((), MouseLeft),
@@ -247,22 +250,22 @@ PresetKeybinds: KeybindContainer = {
         ACT_DESELECT_ALL_BOXES: ((Control, Shift), D),
         ACT_DESELECT_BOX: ((Control,), D),
         ACT_INSPECT_BLOCK: ((Alt,), MouseLeft),
-        ACT_INSPECT_POINT_1: ((), I),
+        ACT_INSPECT_POINT_1: ((), P),
         ACT_CHANGE_PROJECTION: ((), BACKTICK),
         ACT_MOVE_CAMERA_TO_CURSOR: ((Shift, Control), G),
         ACT_TELEPORT_CURSOR_TO_CAMERA: ((Alt, Control), G),
     },
     "left": {
-        ACT_MOVE_UP: ((), E),
-        ACT_MOVE_DOWN: ((), X),
+        ACT_MOVE_UP: ((), U),
+        ACT_MOVE_DOWN: ((), M),
         ACT_MOVE_FORWARDS: ((), I),
         ACT_MOVE_BACKWARDS: ((), K),
         ACT_MOVE_LEFT: ((), J),
         ACT_MOVE_RIGHT: ((), L),
-        ACT_LOOK_UP: ((Alt,), W),
-        ACT_LOOK_DOWN: ((Alt,), S),
-        ACT_LOOK_LEFT: ((Alt,), A),
-        ACT_LOOK_RIGHT: ((Alt,), D),
+        ACT_LOOK_UP: ((Alt,), I),
+        ACT_LOOK_DOWN: ((Alt,), K),
+        ACT_LOOK_LEFT: ((Alt,), J),
+        ACT_LOOK_RIGHT: ((Alt,), L),
         ACT_ROTATE_CURSOR_UP: ((Alt,), Up),
         ACT_ROTATE_CURSOR_DOWN: ((Alt,), Down),
         ACT_ROTATE_CURSOR_LEFT: ((Alt,), Left),
@@ -290,7 +293,7 @@ PresetKeybinds: KeybindContainer = {
         ACT_SAVE_ALL_CLOSE: ((Control, Shift), Q),
         ACT_QUIT_WITHOUT_SAVE: ((Control, Alt, Shift), Q),
         ACT_TOGGLE_MOVE_TARGET: ((), C),
-        ACT_TOGGLE_WASD_MODE: ((Alt,), T),
+        ACT_TOGGLE_WASD_MODE: ((), T),
         ACT_CLEAR_START_HIGHLIGHT_BOX_ACTION: ((), B),
         ACT_BOX_CLICK_KEY: ((Shift,), B),
         ACT_BOX_CLICK_ADD_KEY: ((), Return),
@@ -306,7 +309,7 @@ PresetKeybinds: KeybindContainer = {
         ACT_DESELECT_ALL_BOXES: ((Control, Shift), D),
         ACT_DESELECT_BOX: ((Control,), D),
         ACT_INSPECT_BLOCK: ((Alt,), MouseLeft),
-        ACT_INSPECT_POINT_1: ((), I),
+        ACT_INSPECT_POINT_1: ((), P),
         ACT_CHANGE_PROJECTION: ((), BACKTICK),
         ACT_MOVE_CAMERA_TO_CURSOR: ((Shift, Control), G),
         ACT_TELEPORT_CURSOR_TO_CAMERA: ((Alt, Control), G),

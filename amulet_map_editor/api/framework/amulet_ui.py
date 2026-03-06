@@ -87,6 +87,7 @@ class AmuletUI(wx.Frame):
         ID_CTRL_SHIFT_PAGEDOWN = 10003
         ID_CTRL_SHIFT_PAGEUP = 10004
         ID_CTRL_Q = 10005
+        ID_CTRL_ALT_SHIFT_Q = 10006
         
         acc_entries = [
             wx.AcceleratorEntry(wx.ACCEL_CTRL, wx.WXK_PAGEDOWN, ID_CTRL_PAGEDOWN),
@@ -94,6 +95,7 @@ class AmuletUI(wx.Frame):
             wx.AcceleratorEntry(wx.ACCEL_CTRL | wx.ACCEL_SHIFT, wx.WXK_PAGEDOWN, ID_CTRL_SHIFT_PAGEDOWN),
             wx.AcceleratorEntry(wx.ACCEL_CTRL | wx.ACCEL_SHIFT, wx.WXK_PAGEUP, ID_CTRL_SHIFT_PAGEUP),
             wx.AcceleratorEntry(wx.ACCEL_CTRL, ord('Q'), ID_CTRL_Q),
+            wx.AcceleratorEntry(wx.ACCEL_CTRL | wx.ACCEL_ALT | wx.ACCEL_SHIFT, ord('Q'), ID_CTRL_ALT_SHIFT_Q),
         ]
         
         accel_table = wx.AcceleratorTable(acc_entries)
@@ -105,6 +107,7 @@ class AmuletUI(wx.Frame):
         self.Bind(wx.EVT_MENU, self._on_accel_ctrl_shift_pagedown, id=ID_CTRL_SHIFT_PAGEDOWN)
         self.Bind(wx.EVT_MENU, self._on_accel_ctrl_shift_pageup, id=ID_CTRL_SHIFT_PAGEUP)
         self.Bind(wx.EVT_MENU, self._on_accel_ctrl_q, id=ID_CTRL_Q)
+        self.Bind(wx.EVT_MENU, self._on_accel_ctrl_alt_shift_q, id=ID_CTRL_ALT_SHIFT_Q)
     
     def _on_accel_ctrl_pagedown(self, evt):
         """Handle Ctrl+PageDown - next world."""
@@ -153,6 +156,16 @@ class AmuletUI(wx.Frame):
             self.close_level(current_page.path)
         elif current_page is self._level_notebook._main_menu:
             self.Close()
+
+    def _on_accel_ctrl_alt_shift_q(self, evt):
+        """Handle Ctrl+Alt+Shift+Q - force quit without saving or prompts."""
+        self.force_quit_without_save()
+
+    def force_quit_without_save(self):
+        """Force close the main window without saving or prompts."""
+        self._level_notebook._force_quit_without_save = True
+
+        self.Close(force=True)
 
     def open_world_select_tab(self):
         """Open the world selector as a tab. You should use the method in the app."""
@@ -273,6 +286,7 @@ class AmuletLevelNotebook(flatnotebook.FlatNotebook):
         self._main_menu = AmuletMainMenu(self)
         self._world_selector = None
         self._open_worlds = {}
+        self._force_quit_without_save = False
 
     def init(self):
         self._add_world_tab(self._main_menu, lang.get("main_menu.tab_name"))
@@ -333,6 +347,22 @@ class AmuletLevelNotebook(flatnotebook.FlatNotebook):
     def _on_page_closing(self, evt: flatnotebook.EVT_FLATNOTEBOOK_PAGE_CLOSING):
         """Handle the page closing."""
         page: CLOSEABLE_PAGE_TYPE = self.GetPage(evt.GetSelection())
+        if self._force_quit_without_save:
+            if page is self._world_selector:
+                self._world_selector = None
+            elif hasattr(page, "path"):
+                path = page.path
+                try:
+                    page.disable()
+                except Exception:
+                    pass
+                try:
+                    page.close()
+                except Exception:
+                    pass
+                self._open_worlds.pop(path, None)
+            return
+
         if page is self._main_menu:
             # Don't allow closing the main menu
             evt.Veto()
@@ -374,6 +404,24 @@ class AmuletLevelNotebook(flatnotebook.FlatNotebook):
             self.GetCurrentPage().enable()
 
     def on_app_close(self, evt: wx.CloseEvent):
+        if self._force_quit_without_save:
+            for path, page in list(self._open_worlds.items()):
+                try:
+                    page.disable()
+                except Exception:
+                    pass
+                try:
+                    page.close()
+                except Exception:
+                    pass
+                self._open_worlds.pop(path, None)
+
+            if self._world_selector is not None:
+                self._world_selector = None
+
+            evt.Skip()
+            return
+
         for path, page in list(self._open_worlds.items()):
             self.close_level(path)
 

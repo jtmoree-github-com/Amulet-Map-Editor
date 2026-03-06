@@ -17,6 +17,8 @@ from amulet_map_editor.programs.edit.api.events import (
 )
 from amulet_map_editor.api import image, lang
 from amulet_map_editor.api.opengl.camera import Projection
+from amulet_map_editor.api.wx.util.key_config import stringify_key, format_key_display
+from amulet_map_editor.programs.edit.api.key_config import ACT_TOGGLE_WASD_MODE
 
 if TYPE_CHECKING:
     from amulet_map_editor.programs.edit.api.canvas import EditCanvas
@@ -115,9 +117,7 @@ class FilePanel(EditCanvasContainer):
         self._button_sizer.Add(self._projection_button)
         
         self._move_button = wx.Button(self._button_window, label=lang.get("program_3d_edit.file_ui.move_camera_label"))
-        self._move_button.SetToolTip(
-            lang.get("program_3d_edit.file_ui.move_button_tooltip")
-        )
+        self._move_button.SetToolTip(self._get_move_button_tooltip())
         self._move_button.Bind(wx.EVT_BUTTON, self._on_move_button)
         self._button_sizer.Add(self._move_button)
         
@@ -239,6 +239,15 @@ class FilePanel(EditCanvasContainer):
             self._move_button.SetLabel(lang.get("program_3d_edit.file_ui.move_cursor_label"))
         else:
             self._move_button.SetLabel(lang.get("program_3d_edit.file_ui.move_camera_label"))
+        self._move_button.SetToolTip(self._get_move_button_tooltip())
+
+    def _get_move_button_tooltip(self) -> str:
+        tooltip = lang.get("program_3d_edit.file_ui.move_button_tooltip")
+        keybind = self.canvas.key_binds.get(ACT_TOGGLE_WASD_MODE)
+        if keybind:
+            hotkey_text = format_key_display(stringify_key(keybind))
+            return f"{tooltip} Hotkey: {hotkey_text}"
+        return tooltip
 
     def _change_dimension(self, evt: DimensionChangeEvent):
         """Run when the dimension attribute in the canvas is changed.

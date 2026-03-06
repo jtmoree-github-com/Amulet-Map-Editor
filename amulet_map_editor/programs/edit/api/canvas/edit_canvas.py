@@ -326,7 +326,10 @@ class EditCanvas(BaseEditCanvas):
         elif evt.action_id == ACT_QUIT_WITHOUT_SAVE:
             top_level_parent = self.GetTopLevelParent()
             if top_level_parent is not None:
-                top_level_parent.Destroy()
+                if hasattr(top_level_parent, "force_quit_without_save"):
+                    top_level_parent.force_quit_without_save()
+                else:
+                    top_level_parent.Destroy()
         evt.Skip()
 
     def _get_selection_center_and_size(self):

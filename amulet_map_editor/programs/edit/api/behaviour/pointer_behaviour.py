@@ -1,8 +1,13 @@
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Type
 import wx
 import numpy
 
-from amulet_map_editor.api.opengl.mesh.selection import RenderSelection
+from amulet_map_editor.api.opengl.mesh.selection.box.render_selection_pointer import (
+    RenderSelectionPointer,
+)
+from amulet_map_editor.api.opengl.mesh.selection.box.render_selection import (
+    RenderSelection,
+)
 from amulet_map_editor.api.opengl.camera import Projection
 from amulet.api.data_types import BlockCoordinatesNDArray, BlockCoordinates
 
@@ -48,7 +53,12 @@ class PointChangeEvent(wx.PyEvent):
 class PointerBehaviour(RaycastBehaviour):
     """Adds the behaviour of the selection pointer."""
 
-    def __init__(self, canvas: "EditCanvas"):
+    def __init__(
+        self,
+        canvas: "EditCanvas",
+        render_selection_cls: Type[RenderSelection] = RenderSelectionPointer,
+        allow_keyboard_control: bool = True,
+    ):
         super().__init__(canvas)
 
         # has the pointer moved
@@ -60,9 +70,10 @@ class PointerBehaviour(RaycastBehaviour):
         # manual cursor control
         self._manual_cursor_mode = False
         self._manual_cursor_pos = [0, 0, 0]  # x, y, z position
+        self._allow_keyboard_control = allow_keyboard_control
 
         # the pointer
-        self._pointer = RenderSelection(
+        self._pointer = render_selection_cls(
             self.canvas.context_identifier,
             self.canvas.renderer.opengl_resource_pack,
         )
@@ -76,8 +87,9 @@ class PointerBehaviour(RaycastBehaviour):
         self.canvas.Bind(EVT_PRE_DRAW, self._pre_draw)
         self.canvas.Bind(EVT_CAMERA_MOVED, self._invalidate_pointer)
         self.canvas.Bind(wx.EVT_MOTION, self._invalidate_pointer)
-        self.canvas.Bind(EVT_INPUT_PRESS, self._on_input_press)
-        self.canvas.Bind(EVT_INPUT_HELD, self._on_input_held)
+        if self._allow_keyboard_control:
+            self.canvas.Bind(EVT_INPUT_PRESS, self._on_input_press)
+            self.canvas.Bind(EVT_INPUT_HELD, self._on_input_held)
 
     def _on_input_press(self, evt: InputPressEvent):
         if evt.action_id == ACT_INCR_SELECT_DISTANCE:

@@ -3,12 +3,13 @@ from amulet_map_editor.api.opengl.mesh.selection import (
     RenderSelection,
     RenderSelectionGroup,
 )
+from amulet_map_editor.api.opengl.mesh.selection.box.colours import colours
 
 
 class GreenRenderSelection(RenderSelection):
     @property
     def box_tint(self) -> Tuple[float, float, float]:
-        return 0.7, 1.0, 0.7
+        return colours.get("box_clipboard", (1.0, 0.7, 0.3))
 
 
 class GreenRenderSelectionGroup(RenderSelectionGroup):
