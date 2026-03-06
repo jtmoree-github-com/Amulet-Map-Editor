@@ -52,6 +52,12 @@ class SimpleScrollablePanel(ScrolledPanel, SimpleSizer):
                 sy,
             )
 
+    def AcceptsFocus(self) -> bool:
+        return True
+
+    def AcceptsFocusFromKeyboard(self) -> bool:
+        return True
+
 
 class SimpleChoice(wx.Choice):
     """A wrapper for wx.Choice that sets up the UI for you."""

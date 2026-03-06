@@ -44,6 +44,7 @@ from amulet_map_editor.programs.edit.api.key_config import (
     ACT_CLEAR_START_HIGHLIGHT_BOX_ACTION,
     ACT_TOGGLE_MOVE_TARGET,
     ACT_TOGGLE_WASD_MODE,
+    ACT_TOGGLE_WASD_MODE_MOUSE,
     ACT_MOVE_UP,
     ACT_MOVE_DOWN,
     ACT_MOVE_FORWARDS,
@@ -503,7 +504,7 @@ class SelectTool(wx.BoxSizer, DefaultBaseToolUI):
             self._move_selection_radio.SetValue(True)
         elif evt.action_id == ACT_TOGGLE_MOVE_TARGET:
             self._toggle_move_target()
-        elif evt.action_id == ACT_TOGGLE_WASD_MODE:
+        elif evt.action_id in (ACT_TOGGLE_WASD_MODE, ACT_TOGGLE_WASD_MODE_MOUSE):
             self.canvas.wasd_moves_cursor = not self.canvas.wasd_moves_cursor
         elif evt.action_id == ACT_ROTATE_CURSOR_UP:
             self._rotate_selection_box("x", 1)

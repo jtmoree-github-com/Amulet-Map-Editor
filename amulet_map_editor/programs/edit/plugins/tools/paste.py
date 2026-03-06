@@ -41,6 +41,7 @@ from amulet_map_editor.programs.edit.api.key_config import (
     ACT_CURSOR_RIGHT,
     ACT_FOCUS_PASTE_DIALOG,
     ACT_TOGGLE_WASD_MODE,
+    ACT_TOGGLE_WASD_MODE_MOUSE,
     ACT_MOVE_UP,
     ACT_MOVE_DOWN,
     ACT_MOVE_FORWARDS,
@@ -685,7 +686,7 @@ class PasteTool(wx.BoxSizer, DefaultBaseToolUI):
         elif self._is_enabled and evt.action_id == ACT_FOCUS_PASTE_DIALOG:
             self._paste_panel.SetFocus()
             self._location.x.SetFocus()
-        elif self._is_enabled and evt.action_id == ACT_TOGGLE_WASD_MODE:
+        elif self._is_enabled and evt.action_id in (ACT_TOGGLE_WASD_MODE, ACT_TOGGLE_WASD_MODE_MOUSE):
             self.canvas.wasd_moves_cursor = not self.canvas.wasd_moves_cursor
         elif self._is_enabled and evt.action_id == ACT_ROTATE_CURSOR_UP:
             self._rotate_axis("x", 1)

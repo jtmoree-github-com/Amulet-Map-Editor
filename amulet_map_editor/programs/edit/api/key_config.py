@@ -6,6 +6,7 @@ from amulet_map_editor.api.wx.util.key_config import (
     KeyActionType,
     Shift,
     MouseLeft,
+    MouseMiddle,
     MouseRight,
     MouseWheelScrollUp,
     MouseWheelScrollDown,
@@ -98,6 +99,7 @@ ACT_SWITCH_TO_CHUNK_MODE = "ACT_SWITCH_TO_CHUNK_MODE"
 ACT_TOGGLE_MOVE_TARGET = "ACT_TOGGLE_MOVE_TARGET"
 ACT_FOCUS_PASTE_DIALOG = "ACT_FOCUS_PASTE_DIALOG"
 ACT_TOGGLE_WASD_MODE = "ACT_TOGGLE_WASD_MODE"
+ACT_TOGGLE_WASD_MODE_MOUSE = "ACT_TOGGLE_WASD_MODE_MOUSE"
 ACT_BOX_CLICK = "ACT_BOX_CLICK"
 ACT_BOX_CLICK_ADD = "ACT_BOX_CLICK_ADD"
 ACT_BOX_CLICK_KEY = "ACT_BOX_CLICK_KEY"
@@ -115,6 +117,7 @@ ACT_DESELECT_BOX = "ACT_DESELECT_BOX"
 ACT_INSPECT_BLOCK = "ACT_INSPECT_BLOCK"
 ACT_INSPECT_POINT_1 = "ACT_INSPECT_POINT_1"
 ACT_CHANGE_PROJECTION = "ACT_CHANGE_PROJECTION"
+ACT_CHANGE_PROJECTION_MOUSE = "ACT_CHANGE_PROJECTION_MOUSE"
 ACT_TOGGLE_FULLSCREEN = "ACT_TOGGLE_FULLSCREEN"
 ACT_MOVE_CAMERA_TO_CURSOR = "ACT_MOVE_CAMERA_TO_CURSOR"
 ACT_TELEPORT_CURSOR_TO_CAMERA = "ACT_TELEPORT_CURSOR_TO_CAMERA"
@@ -186,6 +189,8 @@ MouseKeys: List[KeyActionType] = [
     ACT_BOX_CLICK_ADD,
     ACT_INSPECT_BLOCK,
     ACT_CHANGE_MOUSE_MODE,
+    ACT_TOGGLE_WASD_MODE_MOUSE,
+    ACT_CHANGE_PROJECTION_MOUSE,
     ACT_INCR_SPEED,
     ACT_DECR_SPEED,
     ACT_ZOOM_IN,
@@ -241,6 +246,7 @@ PresetKeybinds: KeybindContainer = {
         ACT_BOX_CLICK: ((), MouseRight),
         ACT_BOX_CLICK_ADD: ((Control,), MouseRight),
         ACT_CHANGE_MOUSE_MODE: ((), MouseLeft),
+        ACT_TOGGLE_WASD_MODE_MOUSE: ((Alt,), MouseLeft),
         ACT_INCR_SPEED: ((), MouseWheelScrollUp),
         ACT_DECR_SPEED: ((), MouseWheelScrollDown),
         ACT_ZOOM_IN: ((), MouseWheelScrollUp),
@@ -249,7 +255,8 @@ PresetKeybinds: KeybindContainer = {
         ACT_DECR_SELECT_DISTANCE: ((), F),
         ACT_DESELECT_ALL_BOXES: ((Control, Shift), D),
         ACT_DESELECT_BOX: ((Control,), D),
-        ACT_INSPECT_BLOCK: ((Alt,), MouseLeft),
+        ACT_INSPECT_BLOCK: ((Alt,), MouseRight),
+        ACT_CHANGE_PROJECTION_MOUSE: ((Control,), MouseLeft),
         ACT_INSPECT_POINT_1: ((), P),
         ACT_CHANGE_PROJECTION: ((), BACKTICK),
         ACT_MOVE_CAMERA_TO_CURSOR: ((Shift, Control), G),
@@ -300,6 +307,7 @@ PresetKeybinds: KeybindContainer = {
         ACT_BOX_CLICK: ((), MouseLeft),
         ACT_BOX_CLICK_ADD: ((Control,), MouseLeft),
         ACT_CHANGE_MOUSE_MODE: ((), MouseRight),
+        ACT_TOGGLE_WASD_MODE_MOUSE: ((Alt,), MouseRight),
         ACT_INCR_SPEED: ((), MouseWheelScrollUp),
         ACT_DECR_SPEED: ((), MouseWheelScrollDown),
         ACT_ZOOM_IN: ((), MouseWheelScrollUp),
@@ -309,6 +317,7 @@ PresetKeybinds: KeybindContainer = {
         ACT_DESELECT_ALL_BOXES: ((Control, Shift), D),
         ACT_DESELECT_BOX: ((Control,), D),
         ACT_INSPECT_BLOCK: ((Alt,), MouseLeft),
+        ACT_CHANGE_PROJECTION_MOUSE: ((Control,), MouseRight),
         ACT_INSPECT_POINT_1: ((), P),
         ACT_CHANGE_PROJECTION: ((), BACKTICK),
         ACT_MOVE_CAMERA_TO_CURSOR: ((Shift, Control), G),
@@ -485,6 +494,8 @@ MouseActionGroups = OrderedDict([
     ]),
     ("camera", [
         ACT_CHANGE_MOUSE_MODE,
+        ACT_TOGGLE_WASD_MODE_MOUSE,
+        ACT_CHANGE_PROJECTION_MOUSE,
     ]),
     ("2d", [
         ACT_ZOOM_IN,

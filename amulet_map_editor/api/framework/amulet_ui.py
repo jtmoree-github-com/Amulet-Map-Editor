@@ -302,6 +302,22 @@ class AmuletLevelNotebook(flatnotebook.FlatNotebook):
                 log.error(f"Could not find a loader for this world.\n{e}")
                 wx.MessageBox(f"{lang.get('select_world.no_loader_found')}\n{e}")
             except Exception as e:
+                error_text = str(e)
+                locked_world_error = (
+                    "LevelDBException" in type(e).__name__
+                    or "db/CURRENT" in error_text
+                ) and "being used by another process" in error_text
+
+                if locked_world_error:
+                    wx.MessageBox(
+                        "This Bedrock world is currently in use by another process.\n\n"
+                        "Close Minecraft Bedrock (and any sync/backup/indexing tools using that folder), "
+                        "then try opening the world again.",
+                        "World Database Locked",
+                        style=wx.OK | wx.ICON_WARNING,
+                    )
+                    return
+
                 log.error(lang.get("select_world.loading_world_failed"), exc_info=True)
                 dialog = TracebackDialog(
                     self,

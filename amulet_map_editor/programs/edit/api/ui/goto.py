@@ -54,6 +54,9 @@ class GoTo(SimpleDialog):
         self.x.Bind(wx.EVT_CHAR, self._on_text)
         self.y.Bind(wx.EVT_CHAR, self._on_text)
         self.z.Bind(wx.EVT_CHAR, self._on_text)
+        self.x.Bind(wx.EVT_KEY_DOWN, self._on_enter_navigation)
+        self.y.Bind(wx.EVT_KEY_DOWN, self._on_enter_navigation)
+        self.z.Bind(wx.EVT_KEY_DOWN, self._on_enter_navigation)
 
         copy_button = wx.BitmapButton(
             self, bitmap=image.icon.tablericons.copy.bitmap(20, 20)
@@ -71,6 +74,11 @@ class GoTo(SimpleDialog):
         )
         self.bottom_sizer.Insert(1, paste_button, 0, wx.TOP | wx.BOTTOM | wx.RIGHT, 5)
         self.Fit()
+        wx.CallAfter(self._focus_first_field)
+
+    def _focus_first_field(self):
+        self.x.SetFocus()
+        self.x.SetSelection(-1, -1)
 
     @property
     def location(self) -> PointCoordinates:
@@ -86,6 +94,25 @@ class GoTo(SimpleDialog):
                 evt.Skip()
         else:
             evt.Skip()
+
+    def _on_enter_navigation(self, evt: wx.KeyEvent):
+        key = evt.GetKeyCode()
+        if key in (wx.WXK_RETURN, wx.WXK_NUMPAD_ENTER):
+            source = evt.GetEventObject()
+            if source is self.x:
+                self.y.SetFocus()
+                self.y.SetSelection(-1, -1)
+                return
+            if source is self.y:
+                self.z.SetFocus()
+                self.z.SetSelection(-1, -1)
+                return
+            if source is self.z:
+                ok_button = self.FindWindow(wx.ID_OK)
+                if ok_button is not None:
+                    ok_button.SetFocus()
+                return
+        evt.Skip()
 
     def _copy(self):
         if wx.TheClipboard.Open():

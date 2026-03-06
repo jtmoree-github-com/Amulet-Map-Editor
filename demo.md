@@ -223,7 +223,7 @@ To navigate the main window using only the keyboard. There are tabs on top which
 - Move boxes
 - Backtick
 - Move boxes
-- Click with Mouse on Selection Box
+- Click with Mouse on Highlighter Text in Dialog
 
 **Narration:**
 "In stock Amulet, the TAB key was overloaded—it would switch between 2d/3d and perform some other tasks, making it difficult to navigate dialogs properly. In this version, TAB now works correctly for dialog navigation. Note that tab moves through the dialog controls.  If the keyboard focus is not on the dialog tab moves it there.   

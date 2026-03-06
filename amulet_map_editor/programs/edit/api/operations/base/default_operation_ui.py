@@ -30,6 +30,7 @@ from amulet_map_editor.api.wx.util.key_config import (
 from amulet_map_editor.programs.edit.api.key_config import (
     ACT_BOX_CLICK,
     ACT_TOGGLE_WASD_MODE,
+    ACT_TOGGLE_WASD_MODE_MOUSE,
     ACT_MOVE_UP,
     ACT_MOVE_DOWN,
     ACT_MOVE_FORWARDS,
@@ -263,7 +264,7 @@ class DefaultOperationUI(OperationUI):
     def _on_input_press(self, evt: InputPressEvent):
         if evt.action_id == ACT_BOX_CLICK:
             self._on_box_click()
-        elif evt.action_id == ACT_TOGGLE_WASD_MODE:
+        elif evt.action_id in (ACT_TOGGLE_WASD_MODE, ACT_TOGGLE_WASD_MODE_MOUSE):
             self.canvas.wasd_moves_cursor = not self.canvas.wasd_moves_cursor
         evt.Skip()
 

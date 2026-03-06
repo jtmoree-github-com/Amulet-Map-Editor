@@ -1,16 +1,11 @@
 # teminology
 
-* Mouse Cursor (white)
+* Mouse Cursor (gray)
 * Highlighter (multiple colors)
 * Preview Caret (orange)
-* Clipboard (gray)
+* Clipboard (white)
 
 # todo
-
-## mouse toggles
-* use Alt Mouse right for Camera toggle?
-* use mouse button 3 for perspective toggle?
-* Ctrl+Mouse_right should toggle the move camera/move cursor
 
 ## misc
 * ctrl+shift+alt+D to toggle dimension?
@@ -22,7 +17,6 @@
 
 ## bugs
 * alt page up /down rotation walks 
-* rotate in select mode automatically selects hightlighter?
 * alt movements do not flip/rotate cursor with  wasd 
 * There are no pneumonics on many menu entries.  suggest improvements
 * fkeys do not work when keyboard focus is in a text field?
@@ -40,10 +34,10 @@ breaking and significant changes are marked with !.  These are major departures 
     - clipboard (selection boxes)
 
 ## Selection and Highlighting
-* ! C to cycle through the highlight targets
 * ! default cursor position is next to camera.  click with mouse to move it
 * ! place cursor on world load
 * ! Change Alt for inspect block to require a mouse click
+* ! C to cycle through the highlight targets (formerly click and hold buttons)
 * move mode switching buttons from bottom of screen into nav bar like 2d/3d and move mouse/cursor
 * map consistent colors to relate settings with 3d view targets
 * inspect block with keyboard
@@ -55,8 +49,10 @@ breaking and significant changes are marked with !.  These are major departures 
 * allow highlighting text in dialogs
 
 ## Hotkeys and Input
-* ! backtick instead of TAB for perspective toggle  
 * ! dont map tab or shift for custom keys.  instead let them be normal
+* ! backtick instead of TAB for perspective toggle  
+* MIddle Mouse toggles the move camera/cursor
+* configurable hotkey toggles camera/cusor
 * Allow tab to move through dialogs
 * Shift+Ctrl+G move camera to cursor
 * Alt+Ctrl+G to move cursor to camera
@@ -68,25 +64,30 @@ breaking and significant changes are marked with !.  These are major departures 
 * Ctrl+F to search fields
 * keyboard keys for speed and zoom
 * alt to rotate cursor instead of camera
-* configurable hotkey for camera/cusor move toggle
+* alt to rotate clipboard, preview caret
 * Ctrl+P preferences dialog
 * Ctrl+M Mouse Controls
 * Ctrl+K Keyboard controls
 
 ## Controls and Keymap UI
 * ! consolidate keymaps
-* ! separate mouse mappings from keyboard mappings
 * ! change labels on keymap groupings to right_hand_mouse, left_hand_mouse
+* ! separate mouse mappings from keyboard mappings
+* Alt Mouse Middle for perspective toggle
 * dont allow the keyboard mapping control window to map mouse actions
 * require any mapping in the mouse control to include a mouse action
 * remove buttons from un-editable control descriptions. only have keymap buttons for user defined mappings (groups)
-* add controls and mouse dialog window management
 * swap left/right on keys and control descriptions
-* allow keyboard only paradigm
+* allow keyboard only paradigm to move camera and selections
+* add controls and mouse dialog window management
 
 ## Layout and Tabs
+* don't open new window for open world
 * add "Convert World" title to Convert tab and make "Currently Opened World" a title on About tab
 * remove Close world button from About and convert tabs in favor of the tab X and hotkeys
 * add tooltip to X icon showing the hotkey
 * fix interface tab navigation using Ctl+Page up/down and Shift+Ctrl+Page up/down
 * fix tab does not go to the world list in the open dialog
+* add friendly Bedrock world-lock handling with a clear “world database locked” warning instead of generic traceback flow
+* improve Go To dialog usability by auto-focusing X on open and supporting Enter navigation x → y → z → OK
+* update language strings for terminology consistency (Highlighter, selection/highlighter wording, new mouse action labels)

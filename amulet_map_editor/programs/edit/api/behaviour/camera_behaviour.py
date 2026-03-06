@@ -32,6 +32,7 @@ from ..key_config import (
     ACT_ZOOM_IN,
     ACT_ZOOM_OUT,
     ACT_CHANGE_PROJECTION,
+    ACT_CHANGE_PROJECTION_MOUSE,
 )
 
 if TYPE_CHECKING:
@@ -68,7 +69,7 @@ class CameraBehaviour(BaseBehaviour):
 
     def _on_input_press(self, evt: InputPressEvent):
         """Logic to run each time the input press event is run."""
-        if evt.action_id == ACT_CHANGE_PROJECTION:
+        if evt.action_id in (ACT_CHANGE_PROJECTION, ACT_CHANGE_PROJECTION_MOUSE):
             if self.canvas.camera.projection_mode == Projection.PERSPECTIVE:
                 self._last_camera_rotation = self.canvas.camera.rotation
                 self.canvas.camera.rotation = 180, 90

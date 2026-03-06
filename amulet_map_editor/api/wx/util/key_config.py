@@ -419,13 +419,28 @@ class KeyConfigDialog(SimpleDialog):
             self, selected_group, entries, fixed_keybinds, user_keybinds, action_groups, show_misc, show_descriptions, require_mouse_action
         )
         self.sizer.Add(self._key_config, 1, wx.EXPAND)
+        self._ok_button = self.FindWindow(wx.ID_OK)
+        self._cancel_button = self.FindWindow(wx.ID_CANCEL)
+        self.Bind(wx.EVT_CHAR_HOOK, self._on_char_hook)
         self.Layout()
         self.Fit()
         width, height = self.GetSize()
-        self.SetMinSize((max(1080, width), max(700, height)))
+        target_size = (max(1080, width), max(700, height))
+        self.SetSize(target_size)
+        self.SetMinSize(target_size)
         
-        # Set focus on the scrollable panel for keyboard navigation
-        wx.CallAfter(self._key_config._options.SetFocus)
+        # Set initial focus for keyboard navigation
+        wx.CallAfter(self._key_config.set_initial_focus)
+
+    def _on_char_hook(self, evt: wx.KeyEvent):
+        if evt.GetKeyCode() == wx.WXK_TAB:
+            self._key_config.focus_next_control(
+                reverse=evt.ShiftDown(),
+                ok_button=self._ok_button,
+                cancel_button=self._cancel_button,
+            )
+            return
+        evt.Skip()
 
     @property
     def options(self) -> Tuple[KeybindContainer, KeybindGroupIdType, KeybindGroup]:
@@ -463,9 +478,9 @@ class KeyConfig(wx.BoxSizer):
         self._choice.Bind(wx.EVT_CHOICE, self._on_group_change)
         top_sizer.Add(self._choice, 1, wx.ALL | wx.EXPAND, 5)
 
-        add = wx.BitmapButton(parent, bitmap=ADD_ICON.bitmap(32, 32))
-        add.Bind(wx.EVT_BUTTON, lambda evt: self._create_new_group())
-        top_sizer.Add(add, 0, wx.ALL, 5)
+        self._add = wx.BitmapButton(parent, bitmap=ADD_ICON.bitmap(32, 32))
+        self._add.Bind(wx.EVT_BUTTON, lambda evt: self._create_new_group())
+        top_sizer.Add(self._add, 0, wx.ALL, 5)
 
         self._delete = wx.BitmapButton(parent, bitmap=SUBTRACT_ICON.bitmap(32, 32))
         self._delete.Bind(wx.EVT_BUTTON, lambda evt: self._delete_group())
@@ -481,6 +496,61 @@ class KeyConfig(wx.BoxSizer):
 
         self._key_buttons: Dict[str, wx.Button] = {}
         self._rebuild_buttons()
+
+    def set_initial_focus(self):
+        if self._choice is not None and self._choice.IsShownOnScreen() and self._choice.IsEnabled():
+            self._choice.SetFocus()
+        else:
+            self._focus_scrollbar_control()
+
+    def _scroll_focus_target(self) -> Optional[wx.Window]:
+        if self._options is None:
+            return None
+        set_can_focus = getattr(self._options, "SetCanFocus", None)
+        if callable(set_can_focus):
+            set_can_focus(True)
+        for child in self._options.GetChildren():
+            if isinstance(child, wx.ScrollBar) and child.IsShownOnScreen() and child.IsEnabled():
+                return child
+        if self._options.IsShownOnScreen() and self._options.IsEnabled():
+            return self._options
+        return None
+
+    def _tab_targets(self, ok_button: Optional[wx.Window], cancel_button: Optional[wx.Window]) -> Sequence[wx.Window]:
+        targets = []
+        controls: Sequence[Optional[wx.Window]] = (
+            self._choice,
+            self._add,
+            self._delete,
+            self._rename,
+            self._scroll_focus_target(),
+            *self._key_buttons.values(),
+            ok_button,
+            cancel_button,
+        )
+        for control in controls:
+            if control is not None and control.IsShownOnScreen() and control.IsEnabled():
+                targets.append(control)
+        return tuple(targets)
+
+    def focus_next_control(
+        self,
+        reverse: bool,
+        ok_button: Optional[wx.Window],
+        cancel_button: Optional[wx.Window],
+    ):
+        targets = self._tab_targets(ok_button, cancel_button)
+        if not targets:
+            return
+
+        current_focus = wx.Window.FindFocus()
+        if current_focus not in targets:
+            targets[-1 if reverse else 0].SetFocus()
+            return
+
+        current_index = targets.index(current_focus)
+        next_index = (current_index - 1) % len(targets) if reverse else (current_index + 1) % len(targets)
+        targets[next_index].SetFocus()
 
     def _rebuild_buttons(self):
         group_id = self._current_group_id()
@@ -534,7 +604,11 @@ class KeyConfig(wx.BoxSizer):
         if bold:
             font = ctrl.GetFont()
             ctrl.SetFont(font.Bold())
+        self._disable_keyboard_focus(ctrl)
         ctrl.Bind(wx.EVT_MOUSEWHEEL, self._on_selectable_text_mouse_wheel)
+        ctrl.Bind(wx.EVT_SET_FOCUS, self._on_selectable_text_focus)
+        ctrl.Bind(wx.EVT_KEY_DOWN, self._on_selectable_text_key_down)
+        ctrl.Bind(wx.EVT_NAVIGATION_KEY, self._on_selectable_text_navigation)
         return ctrl
 
     def _create_selectable_paragraph(
@@ -559,8 +633,87 @@ class KeyConfig(wx.BoxSizer):
         line_count = max(1, wrapped_text.count("\n") + 1)
         height = ctrl.GetCharHeight() * line_count + 8
         ctrl.SetMinSize((wrap_width + 10, height))
+        self._disable_keyboard_focus(ctrl)
         ctrl.Bind(wx.EVT_MOUSEWHEEL, self._on_selectable_text_mouse_wheel)
+        ctrl.Bind(wx.EVT_SET_FOCUS, self._on_selectable_text_focus)
+        ctrl.Bind(wx.EVT_KEY_DOWN, self._on_selectable_text_key_down)
+        ctrl.Bind(wx.EVT_NAVIGATION_KEY, self._on_selectable_text_navigation)
         return ctrl
+
+    @staticmethod
+    def _disable_keyboard_focus(window: wx.Window):
+        disable_focus = getattr(window, "DisableFocusFromKeyboard", None)
+        if callable(disable_focus):
+            disable_focus()
+            return
+        set_can_focus = getattr(window, "SetCanFocus", None)
+        if callable(set_can_focus):
+            set_can_focus(False)
+
+    @staticmethod
+    def _hide_text_caret(window: wx.Window):
+        get_caret = getattr(window, "GetCaret", None)
+        if callable(get_caret):
+            caret = get_caret()
+            if caret is not None:
+                try:
+                    caret.Hide()
+                except Exception:
+                    pass
+
+    def _on_selectable_text_focus(self, evt: wx.FocusEvent):
+        ctrl = evt.GetEventObject()
+        self._hide_text_caret(ctrl)
+        wx.CallAfter(self._hide_text_caret, ctrl)
+        mouse_state = wx.GetMouseState()
+        if not mouse_state.LeftIsDown():
+            wx.CallAfter(self._focus_non_readonly_control)
+
+    def _focus_non_readonly_control(self):
+        if self._focus_scrollbar_control():
+            return
+        if self._choice is not None and self._choice.IsShownOnScreen() and self._choice.IsEnabled():
+            self._choice.SetFocus()
+            return
+        if self._delete is not None and self._delete.IsShownOnScreen() and self._delete.IsEnabled():
+            self._delete.SetFocus()
+            return
+        if self._rename is not None and self._rename.IsShownOnScreen() and self._rename.IsEnabled():
+            self._rename.SetFocus()
+
+    def _focus_scrollbar_control(self) -> bool:
+        if self._options is None:
+            return False
+        for child in self._options.GetChildren():
+            if isinstance(child, wx.ScrollBar) and child.IsShownOnScreen() and child.IsEnabled():
+                child.SetFocus()
+                return True
+        if self._options.IsShownOnScreen() and self._options.IsEnabled():
+            self._options.SetFocus()
+            return True
+        return False
+
+    def _on_selectable_text_key_down(self, evt: wx.KeyEvent):
+        key_code = evt.GetKeyCode()
+        if key_code == wx.WXK_TAB:
+            self._focus_scrollbar_control()
+            return
+        blocked_keys = {
+            wx.WXK_LEFT,
+            wx.WXK_RIGHT,
+            wx.WXK_UP,
+            wx.WXK_DOWN,
+            wx.WXK_HOME,
+            wx.WXK_END,
+            wx.WXK_PAGEUP,
+            wx.WXK_PAGEDOWN,
+        }
+        if key_code in blocked_keys:
+            return
+        evt.Skip()
+
+    def _on_selectable_text_navigation(self, evt: wx.NavigationKeyEvent):
+        self._focus_scrollbar_control()
 
     def _on_selectable_text_mouse_wheel(self, evt: wx.MouseEvent):
         wheel_delta = evt.GetWheelDelta() or 120
@@ -570,10 +723,19 @@ class KeyConfig(wx.BoxSizer):
             scroll_lines = -int(wheel_rotation / wheel_delta) * lines_per_action
             if scroll_lines != 0:
                 self._options.ScrollLines(scroll_lines)
+        evt.Skip()
+
+    def _bind_mouse_wheel_recursive(self, window: wx.Window):
+        if window is None:
+            return
+        window.Bind(wx.EVT_MOUSEWHEEL, self._on_selectable_text_mouse_wheel)
+        for child in window.GetChildren():
+            self._bind_mouse_wheel_recursive(child)
 
     def _refresh_options_scroll(self):
         self._options.Layout()
         self._options.FitInside()
+        self._bind_mouse_wheel_recursive(self._options)
 
     def _rebuild_grouped_options(self, group, editable: bool):
         """Rebuild options panel with section headings and grouped actions."""
