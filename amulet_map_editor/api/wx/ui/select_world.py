@@ -532,6 +532,16 @@ class ScrollableWorldsUI(wx.Panel):
         self._sizer = wx.BoxSizer(wx.VERTICAL)
         self.SetSizer(self._sizer)
 
+        # Add readonly text field showing the paths being searched
+        self._path_text = wx.TextCtrl(
+            self,
+            value="",
+            style=wx.TE_READONLY | wx.TE_MULTILINE | wx.BORDER_SIMPLE,
+        )
+        self._path_text.SetMinSize((-1, 120))
+        self._path_text.SetBackgroundColour(wx.SystemSettings.GetColour(wx.SYS_COLOUR_BTNFACE))
+        self._sizer.Add(self._path_text, 0, wx.EXPAND | wx.ALL, 5)
+
         self._tree = wx.TreeCtrl(
             self,
             style=wx.TR_HAS_BUTTONS
@@ -581,6 +591,17 @@ class ScrollableWorldsUI(wx.Panel):
     def reload(self):
         self._tree.DeleteAllItems()
         root = self._tree.AddRoot("worlds")
+
+        # Update path text field with existing directories
+        existing_paths = []
+        for group_name, directory in minecraft_world_paths:
+            if os.path.isdir(directory):
+                existing_paths.append(f"{group_name}\n  {directory}")
+        
+        if existing_paths:
+            self._path_text.SetValue("\n\n".join(existing_paths))
+        else:
+            self._path_text.SetValue("No world directories found")
 
         platform_nodes: Dict[str, wx.TreeItemId] = {}
         nested_section_nodes: Dict[Tuple[str, str], wx.TreeItemId] = {}
@@ -651,9 +672,8 @@ class WorldSelectUI(wx.Panel):
         sizer = wx.BoxSizer(wx.VERTICAL)
         self.SetSizer(sizer)
 
-        header_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        sizer.Add(header_sizer, 0, wx.EXPAND)
-        header_sizer.AddStretchSpacer()
+        header_sizer = wx.BoxSizer(wx.VERTICAL)
+        sizer.Add(header_sizer, 0, wx.ALIGN_CENTER_HORIZONTAL)
 
         self.header_open_world = wx.Button(
             self, label=lang.get("select_world.open_world_button")
@@ -662,9 +682,7 @@ class WorldSelectUI(wx.Panel):
         font.SetPointSize(16)
         self.header_open_world.SetFont(font)
         self.header_open_world.Bind(wx.EVT_BUTTON, self._open_world)
-        header_sizer.Add(self.header_open_world)
-
-        header_sizer.AddSpacer(20)
+        header_sizer.Add(self.header_open_world, 0, wx.ALL | wx.CENTER, 5)
 
         self.header_open_mcworld = wx.Button(
             self, label=lang.get("select_world.open_mcworld_button")
@@ -673,9 +691,7 @@ class WorldSelectUI(wx.Panel):
         font.SetPointSize(16)
         self.header_open_mcworld.SetFont(font)
         self.header_open_mcworld.Bind(wx.EVT_BUTTON, self._open_mcworld)
-        header_sizer.Add(self.header_open_mcworld)
-
-        header_sizer.AddStretchSpacer()
+        header_sizer.Add(self.header_open_mcworld, 0, wx.ALL | wx.CENTER, 5)
 
         content = ScrollableWorldsUI(self, open_world_callback)
         sizer.Add(content, 1, wx.EXPAND)

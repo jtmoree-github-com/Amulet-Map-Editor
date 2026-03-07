@@ -13,7 +13,7 @@ from amulet_map_editor.api.wx.ui.select_world import open_level_from_dialog, Wor
 from amulet_map_editor.api.wx.ui.traceback_dialog import TracebackDialog
 from amulet_map_editor import __version__, lang
 from amulet_map_editor.api.framework.pages import WorldPageUI
-from .pages import AmuletMainMenu, BasePageUI
+from .pages import AmuletMainMenu, BackupsPageUI, BasePageUI
 
 from amulet_map_editor.api import image
 from amulet_map_editor.api import config
@@ -169,6 +169,8 @@ class AmuletUI(wx.Frame):
             self.close_level(current_page.path)
         elif current_page is self._level_notebook._world_selector:
             self._level_notebook.close_world_select_tab()
+        elif current_page is self._level_notebook._backups_page:
+            self._level_notebook.close_backups_tab()
         elif current_page is self._level_notebook._main_menu:
             self.Close()
 
@@ -202,9 +204,17 @@ class AmuletUI(wx.Frame):
         """Open the world selector as a tab. You should use the method in the app."""
         self._level_notebook.open_world_select_tab()
 
+    def open_backups_tab(self):
+        """Open the backups tab."""
+        self._level_notebook.open_backups_tab()
+
     def close_world_select_tab(self):
         """Close the world selector tab if open."""
         self._level_notebook.close_world_select_tab()
+
+    def close_backups_tab(self):
+        """Close the backups tab if open."""
+        self._level_notebook.close_backups_tab()
 
     def close_level(self, path: str):
         """Close a given level. You should use the method in the app."""
@@ -359,6 +369,9 @@ class AmuletLevelNotebook(flatnotebook.FlatNotebook):
     # The world selector tab (if open)
     _world_selector: WorldSelectPageUI | None
 
+    # The backups tab (if open)
+    _backups_page: BackupsPageUI | None
+
     # Storage of open world tabs for easy lookup
     _open_worlds: Dict[str, CLOSEABLE_PAGE_TYPE]
 
@@ -371,6 +384,7 @@ class AmuletLevelNotebook(flatnotebook.FlatNotebook):
 
         self._main_menu = AmuletMainMenu(self)
         self._world_selector = None
+        self._backups_page = None
         self._open_worlds = {}
         self._force_quit_without_save = False
 
@@ -443,6 +457,28 @@ class AmuletLevelNotebook(flatnotebook.FlatNotebook):
             self.DeletePage(page_index)
         self._world_selector = None
 
+    def open_backups_tab(self):
+        """Open the backups tab."""
+        if self._backups_page is not None:
+            page_index = self.GetPageIndex(self._backups_page)
+            if page_index != wx.NOT_FOUND:
+                self.SetSelection(page_index)
+                return
+            self._backups_page = None
+
+        self._backups_page = BackupsPageUI(self)
+        self._add_world_tab(self._backups_page, "Backups")
+
+    def close_backups_tab(self):
+        """Close the backups tab if it is open."""
+        if self._backups_page is None:
+            return
+
+        page_index = self.GetPageIndex(self._backups_page)
+        if page_index != wx.NOT_FOUND:
+            self.DeletePage(page_index)
+        self._backups_page = None
+
     def _add_world_tab(self, page: BasePageUI, obj_name: str):
         """Add a tab and enable it."""
         self.AddPage(page, obj_name, True)
@@ -465,6 +501,8 @@ class AmuletLevelNotebook(flatnotebook.FlatNotebook):
         if self._force_quit_without_save:
             if page is self._world_selector:
                 self._world_selector = None
+            elif page is self._backups_page:
+                self._backups_page = None
             elif hasattr(page, "path"):
                 path = page.path
                 try:
@@ -484,6 +522,8 @@ class AmuletLevelNotebook(flatnotebook.FlatNotebook):
         elif page is self._world_selector:
             # Allow closing the world selector and clear the reference
             self._world_selector = None
+        elif page is self._backups_page:
+            self._backups_page = None
         elif hasattr(page, 'path'):
             # It's a world page
             if page.can_disable() and page.can_close():
@@ -557,6 +597,9 @@ class AmuletLevelNotebook(flatnotebook.FlatNotebook):
             if self._world_selector is not None:
                 self._world_selector = None
 
+            if self._backups_page is not None:
+                self._backups_page = None
+
             evt.Skip()
             return
 
@@ -569,6 +612,12 @@ class AmuletLevelNotebook(flatnotebook.FlatNotebook):
             if page_index != wx.NOT_FOUND:
                 self.DeletePage(page_index)
             self._world_selector = None
+
+        if self._backups_page is not None:
+            page_index = self.GetPageIndex(self._backups_page)
+            if page_index != wx.NOT_FOUND:
+                self.DeletePage(page_index)
+            self._backups_page = None
 
         # Only block close if actual world pages are still open.
         if self._open_worlds:

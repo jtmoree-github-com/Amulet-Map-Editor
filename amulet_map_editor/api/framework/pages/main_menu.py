@@ -58,6 +58,11 @@ class AmuletMainMenu(wx.Panel, BasePageUI):
         )
         menu_sizer.Add(self._open_world_button, 0, wx.ALL | wx.CENTER, 5)
 
+        self._backups_button = wx.Button(self, size=(400, 70), label="Backups")
+        self._backups_button.SetFont(button_font)
+        self._backups_button.Bind(wx.EVT_BUTTON, lambda _: app.open_backups_tab())
+        menu_sizer.Add(self._backups_button, 0, wx.ALL | wx.CENTER, 5)
+
         self._user_manual_button = wx.Button(self, size=(400, 70))
         self._user_manual_button.SetFont(button_font)
         self._user_manual_button.Bind(wx.EVT_BUTTON, self._documentation)
@@ -145,6 +150,7 @@ class AmuletMainMenu(wx.Panel, BasePageUI):
     def _load_strings(self):
         self._amulet_name.SetLabel(lang.get("meta.amulet"))
         self._open_world_button.SetLabel(lang.get("main_menu.open_world"))
+        self._backups_button.SetLabel("Backups")
         self._user_manual_button.SetLabel(lang.get("main_menu.user_manual"))
         self._user_manual_button.SetToolTip(lang.get("app.browser_open_tooltip"))
         self._bug_tracker_button.SetLabel(lang.get("main_menu.bug_tracker"))
