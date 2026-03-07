@@ -43,8 +43,20 @@ def load_extensions():
         ):
             extensions.append(load_extension(module_name))
 
+        # Sort with explicit order for known core tabs (About, Viewport, Convert)
+        # to maintain consistent positioning regardless of alphabetical name changes.
+        def _extension_sort_key(ext):
+            name = ext[0]
+            # Map known program names to desired order positions
+            order_map = {
+                lang.get("program_about.tab_name"): 0,
+                lang.get("program_3d_edit.tab_name"): 1,  # Viewport
+                lang.get("program_convert.tab_name"): 2,
+            }
+            return (order_map.get(name, 999), name)
+        
         _extensions.extend(
-            sorted((ext for ext in extensions if ext is not None), key=lambda x: x[0])
+            sorted((ext for ext in extensions if ext is not None), key=_extension_sort_key)
         )
 
 
@@ -74,6 +86,7 @@ class WorldPageUI(wx.Notebook, BasePageUI):
     def __init__(self, parent: wx.Window, path: str):
         super().__init__(parent, style=wx.NB_LEFT)
         self._path = path
+        self._base_tab_labels: dict[int, str] = {}
         try:
             self.world = load_level(path)
         except LoaderNoneMatched as e:
@@ -83,6 +96,32 @@ class WorldPageUI(wx.Notebook, BasePageUI):
         self._load_extensions()
         self.Bind(wx.EVT_NOTEBOOK_PAGE_CHANGING, self._page_changing, self)
         self.Bind(wx.EVT_NOTEBOOK_PAGE_CHANGED, self._page_changed, self)
+        wx.CallAfter(self._refresh_tab_highlight)
+
+    @staticmethod
+    def _strip_tab_prefix(label: str) -> str:
+        if label.startswith("> ") or label.startswith("  "):
+            return label[2:]
+        return label
+
+    def _refresh_tab_highlight(self):
+        """Apply explicit selected-tab emphasis for vertical tabs."""
+        selected = self.GetSelection()
+        if selected == wx.NOT_FOUND:
+            return
+
+        for index in range(self.GetPageCount()):
+            base_label = self._base_tab_labels.get(
+                index, self._strip_tab_prefix(self.GetPageText(index))
+            )
+            if index == selected:
+                # wx.Notebook does not support per-tab font weight on all platforms.
+                # Use uppercase + marker to create a bold-like active emphasis.
+                self.SetPageText(index, f"> {base_label.upper()}")
+            else:
+                self.SetPageText(index, f"  {base_label}")
+
+        self.Refresh()
 
     def GetPage(self, page) -> BaseProgram:
         wx_page = super().GetPage(page)
@@ -302,6 +341,7 @@ class WorldPageUI(wx.Notebook, BasePageUI):
             try:
                 ext = extension(self, self.world)
                 self.AddPage(ext, extension_name, select)
+                self._base_tab_labels[self.GetPageCount() - 1] = extension_name
                 select = False
             except Exception as e:
                 log.exception(
@@ -357,6 +397,10 @@ class WorldPageUI(wx.Notebook, BasePageUI):
         """Method to fire when the page has changed."""
         self._disable_page(evt.GetOldSelection())
         self._enable_page(evt.GetSelection())
+        self._refresh_tab_highlight()
+        # Force the tab strip to repaint immediately to show selection changes
+        wx.CallAfter(self.Refresh)
+        wx.CallAfter(self.SendSizeEvent)
 
     def _disable_page(self, page: Optional[int] = None):
         """Disable a page. Defaults to the current page."""

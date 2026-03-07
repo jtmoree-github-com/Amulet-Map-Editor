@@ -187,7 +187,7 @@ program_convert.menu_bar.help.user_guide=User Guide (online)
 
 # 3D Editor
 ## The program used to edit a world with a 3D viewer
-program_3d_edit.tab_name=3D Editor
+program_3d_edit.tab_name=Viewport
 
 ## Canvas
 program_3d_edit.canvas.please_wait=Please wait while the renderer loads

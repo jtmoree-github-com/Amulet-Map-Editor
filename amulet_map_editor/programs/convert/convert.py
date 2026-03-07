@@ -87,10 +87,6 @@ class ConvertExtension(SimpleScrollablePanel, BaseProgram):
         self._existing_world_choice.Bind(wx.EVT_CHOICE, self._on_existing_world_selected)
         self._existing_row.add_object(self._existing_world_choice, 0, wx.ALL | wx.CENTER)
 
-        # Prefill new world name/path so the UI is ready immediately.
-        default_world_name = self.world.level_wrapper.level_name or "Converted World"
-        self._new_world_name.SetValue(default_world_name)
-
         self._ensure_target_root_exists()
 
         self._populate_existing_worlds()
@@ -116,6 +112,10 @@ class ConvertExtension(SimpleScrollablePanel, BaseProgram):
         self._output_preview_slot = SimplePanel(self._output, wx.VERTICAL)
         self._output.add_object(self._output_preview_slot, 0, wx.ALL | wx.CENTER)
         self._world_preview_row.add_object(self._output, 0, wx.ALL | wx.CENTER)
+
+        # Prefill new world name/path after preview widgets exist.
+        default_world_name = self.world.level_wrapper.level_name or "Converted World"
+        self._new_world_name.SetValue(default_world_name)
 
         # Progress bar on its own line, full width, hidden until conversion runs.
         self.loading_bar = wx.Gauge(
@@ -172,10 +172,10 @@ class ConvertExtension(SimpleScrollablePanel, BaseProgram):
         return self._platform_display_label(self._source_platform)
 
     def _conversion_title_text(self) -> str:
-        """Build explicit conversion text: Convert <Source> World to <Target>."""
+        """Build explicit conversion text: Convert <Source> -> <Target>."""
         return (
-            f"{lang.get('program_convert.title')} "
-            f"{self._source_platform_label()} World to {self._target_platform_label()}"
+            f"Convert "
+            f"{self._source_platform_label()} -> {self._target_platform_label()}"
         )
 
     def _dynamic_title_text(self) -> str:
@@ -466,6 +466,9 @@ class ConvertExtension(SimpleScrollablePanel, BaseProgram):
             self._select_existing_output_world(self._existing_world_paths[index])
 
     def _on_new_world_name_changed(self, _evt):
+        # EVT_TEXT may fire during early init before preview widgets are created.
+        if not hasattr(self, "_output_preview_slot"):
+            return
         if not self._new_world_radio.GetValue():
             return
         world_name = self._new_world_name.GetValue().strip()
