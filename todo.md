@@ -6,8 +6,8 @@
 * Clipboard (white)
 
 # todo
-* research export interface.  it's confusing
 * add controller handler to use gamepad?
+* export/import interface?
 
 ## misc
 * can we have a blender 3d keymap preset?
@@ -34,6 +34,7 @@ Major changes that may not be liked by current userbase are **bold**.  Significa
     - clipboard (selection boxes)
 
 ## Layout and Tabs
+* *refactor convert interface*
 * update language strings for terminology consistency (Highlighter, selection/highlighter wording, new mouse action labels)
 * fixed tabs not displaying on program load
 * *rename Open World Button to => Worlds and menu File => Open World to Worlds*
@@ -52,6 +53,7 @@ Major changes that may not be liked by current userbase are **bold**.  Significa
 * add Backups feature
 * ctrl+Q and Esc cancel open world
 * add pneumonics and clean up menus
+
 
 ## Selection and Highlighting
 * **default cursor position is next to camera.  click with mouse to move it**

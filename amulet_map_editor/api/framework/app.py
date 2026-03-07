@@ -95,6 +95,10 @@ class AmuletApp(wx.App):
         """Open the backups tab."""
         self._amulet_ui.open_backups_tab()
 
+    def open_convert(self, path: str):
+        """Open a world and switch to its Convert tab."""
+        self._amulet_ui.open_convert(path)
+
     def close_level(self, path: str):
         """
         Close a level tab.
@@ -135,3 +139,8 @@ def close_level(path: str):
 def open_backups_tab():
     """Open the backups tab."""
     get_app().open_backups_tab()
+
+
+def open_convert(path: str):
+    """Open a world and switch to its Convert tab."""
+    get_app().open_convert(path)

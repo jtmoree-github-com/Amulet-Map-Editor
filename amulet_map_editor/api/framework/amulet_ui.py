@@ -93,6 +93,10 @@ class AmuletUI(wx.Frame):
         """Open a level. You should use the method in the app."""
         self._level_notebook.open_level(path)
 
+    def open_convert(self, path: str):
+        """Open a world and switch to its Convert tab."""
+        self._level_notebook.open_convert(path)
+
     def _setup_accelerators(self):
         """Setup global keyboard accelerators for tab navigation."""
         # Use fixed IDs for reliability
@@ -488,6 +492,19 @@ class AmuletLevelNotebook(flatnotebook.FlatNotebook):
             else:
                 self._open_worlds[path] = world
                 self._add_world_tab(world, world.world_name)
+
+    def open_convert(self, path: str):
+        """Open a world and switch to its Convert tab."""
+        self.open_level(path)
+        world = self._open_worlds.get(path)
+        if world is None:
+            return
+
+        convert_tab_name = lang.get("program_convert.tab_name")
+        for page_index in range(world.GetPageCount()):
+            if world.GetPageText(page_index) == convert_tab_name:
+                world.SetSelection(page_index)
+                break
 
     def open_world_select_tab(self):
         """Open the world selector as a tab"""

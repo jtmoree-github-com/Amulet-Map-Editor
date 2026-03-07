@@ -716,24 +716,68 @@ class ScrollableWorldsUI(wx.Panel):
         menu = wx.Menu()
         open_id = wx.NewIdRef()
         save_as_id = wx.NewIdRef()
+        convert_id = wx.NewIdRef()
         delete_id = wx.NewIdRef()
         
         menu.Append(open_id, "Open")
         menu.Append(save_as_id, "Save As")
+        menu.Append(convert_id, "Convert")
         menu.AppendSeparator()
         menu.Append(delete_id, "Delete")
         
         if is_mcworld:
             menu.Bind(wx.EVT_MENU, lambda e: self._open_mcworld_file(path), id=open_id)
             menu.Bind(wx.EVT_MENU, lambda e: self._save_mcworld_as(path), id=save_as_id)
+            menu.Bind(wx.EVT_MENU, lambda e: self._convert_mcworld_file(path), id=convert_id)
             menu.Bind(wx.EVT_MENU, lambda e: self._delete_world(path), id=delete_id)
         else:
             menu.Bind(wx.EVT_MENU, lambda e: self.open_world_callback(path), id=open_id)
             menu.Bind(wx.EVT_MENU, lambda e: self._save_world_as(path), id=save_as_id)
+            menu.Bind(wx.EVT_MENU, lambda e: self._convert_world(path), id=convert_id)
             menu.Bind(wx.EVT_MENU, lambda e: self._delete_world(path), id=delete_id)
         
         self._tree.PopupMenu(menu, pt)
         menu.Destroy()
+
+    def _convert_world(self, world_path: str):
+        """Open a world and switch to its Convert tab."""
+        try:
+            app.open_convert(world_path)
+        except Exception as e:
+            log.error(f"Error opening convert tab for {world_path}: {e}")
+            wx.LogError("Failed to open convert tab")
+
+    def _extract_mcworld_to_temp(self, mcworld_path: str) -> str:
+        """Extract a .mcworld archive and return the extracted directory path."""
+        temp_dir = os.path.join(os.path.expanduser("~"), ".amulet_temp_worlds")
+        os.makedirs(temp_dir, exist_ok=True)
+
+        file_name = os.path.basename(mcworld_path)
+        world_name = os.path.splitext(file_name)[0]
+        extract_dir = os.path.join(temp_dir, world_name)
+
+        if os.path.exists(extract_dir):
+            shutil.rmtree(extract_dir)
+
+        os.makedirs(extract_dir)
+
+        busy_msg = wx.BusyInfo("Extracting world...")
+        try:
+            with zipfile.ZipFile(mcworld_path, 'r') as zip_ref:
+                zip_ref.extractall(extract_dir)
+        finally:
+            del busy_msg
+
+        return extract_dir
+
+    def _convert_mcworld_file(self, mcworld_path: str):
+        """Extract a .mcworld file and open its Convert tab."""
+        try:
+            extract_dir = self._extract_mcworld_to_temp(mcworld_path)
+            app.open_convert(extract_dir)
+        except Exception as e:
+            log.error(f"Error converting mcworld file {mcworld_path}: {e}")
+            wx.LogError("Failed to open convert tab")
 
     def _save_world_as(self, world_path: str):
         """Handle Save As action for a world."""
@@ -975,28 +1019,8 @@ class ScrollableWorldsUI(wx.Panel):
     def _open_mcworld_file(self, mcworld_path: str):
         """Open a .mcworld file by extracting it to a temporary location."""
         try:
-            # Create a temporary directory for extraction
-            temp_dir = os.path.join(os.path.expanduser("~"), ".amulet_temp_worlds")
-            os.makedirs(temp_dir, exist_ok=True)
-            
-            # Extract the mcworld file
-            file_name = os.path.basename(mcworld_path)
-            world_name = os.path.splitext(file_name)[0]
-            extract_dir = os.path.join(temp_dir, world_name)
-            
-            # Remove existing extraction if present
-            if os.path.exists(extract_dir):
-                shutil.rmtree(extract_dir)
-            
-            os.makedirs(extract_dir)
-            
-            busy_msg = wx.BusyInfo("Extracting world...")
-            try:
-                with zipfile.ZipFile(mcworld_path, 'r') as zip_ref:
-                    zip_ref.extractall(extract_dir)
-            finally:
-                del busy_msg
-            
+            extract_dir = self._extract_mcworld_to_temp(mcworld_path)
+
             # Open the extracted world
             self.open_world_callback(extract_dir)
         except Exception as e:
