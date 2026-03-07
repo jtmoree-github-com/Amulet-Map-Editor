@@ -202,3 +202,7 @@ class WorldPageUI(wx.Notebook, BasePageUI):
     def enable(self):
         """Enable the world page"""
         self._enable_page()
+        # On Windows, wx.Notebook with wx.NB_LEFT does not repaint the tab
+        # strip until the user hovers over it.  Posting a size event after the
+        # page is shown forces the tab area to redraw immediately.
+        wx.CallAfter(self.SendSizeEvent)

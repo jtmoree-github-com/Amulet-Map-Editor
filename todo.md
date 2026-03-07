@@ -6,6 +6,7 @@
 * Clipboard (white)
 
 # todo
+Paste shoulde put the caret on top of the clipboard
 
 ## misc
 * ctrl+shift+alt+D to toggle dimension?
@@ -34,10 +35,10 @@ breaking and significant changes are marked with !.  These are major departures 
     - clipboard (selection boxes)
 
 ## Selection and Highlighting
-* ! default cursor position is next to camera.  click with mouse to move it
-* ! place cursor on world load
-* ! Change Alt for inspect block to require a mouse click
-* ! C to cycle through the highlight targets (formerly click and hold buttons)
+* **default cursor position is next to camera.  click with mouse to move it**
+* **place cursor on world load**
+* **Change Alt for inspect block to require a mouse click**
+* **C to cycle through the highlight targets (formerly click and hold buttons)**
 * move mode switching buttons from bottom of screen into nav bar like 2d/3d and move mouse/cursor
 * map consistent colors to relate settings with 3d view targets
 * inspect block with keyboard
@@ -49,8 +50,8 @@ breaking and significant changes are marked with !.  These are major departures 
 * allow highlighting text in dialogs
 
 ## Hotkeys and Input
-* ! dont map tab or shift for custom keys.  instead let them be normal
-* ! backtick instead of TAB for perspective toggle  
+* **dont map tab or shift for custom keys.  instead let them be normal**
+* **backtick instead of TAB for perspective toggle**  
 * MIddle Mouse toggles the move camera/cursor
 * configurable hotkey toggles camera/cusor
 * Allow tab to move through dialogs
@@ -70,9 +71,9 @@ breaking and significant changes are marked with !.  These are major departures 
 * Ctrl+K Keyboard controls
 
 ## Controls and Keymap UI
-* ! consolidate keymaps
-* ! change labels on keymap groupings to right_hand_mouse, left_hand_mouse
-* ! separate mouse mappings from keyboard mappings
+* **consolidate keymaps**
+* **change labels on keymap groupings to right_hand_mouse, left_hand_mouse**
+* **separate mouse mappings from keyboard mappings**
 * Alt Mouse Middle for perspective toggle
 * dont allow the keyboard mapping control window to map mouse actions
 * require any mapping in the mouse control to include a mouse action
@@ -82,6 +83,7 @@ breaking and significant changes are marked with !.  These are major departures 
 * add controls and mouse dialog window management
 
 ## Layout and Tabs
+* fixed tab not displaying on program load
 * don't open new window for open world
 * add "Convert World" title to Convert tab and make "Currently Opened World" a title on About tab
 * remove Close world button from About and convert tabs in favor of the tab X and hotkeys

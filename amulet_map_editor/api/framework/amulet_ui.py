@@ -350,6 +350,9 @@ class AmuletLevelNotebook(flatnotebook.FlatNotebook):
     def _add_world_tab(self, page: BasePageUI, obj_name: str):
         """Add a tab and enable it."""
         self.AddPage(page, obj_name, True)
+        # Defer the tab-strip fixup so it runs after AddPage's internal
+        # Freeze/Thaw and all event handlers have finished.
+        wx.CallAfter(self._ensure_tabs_visible)
 
     def close_level(self, path: str):
         """Close a given world and remove it from the notebook"""
@@ -406,18 +409,41 @@ class AmuletLevelNotebook(flatnotebook.FlatNotebook):
         """Handle the page changing."""
         if evt.GetOldSelection() != evt.GetSelection():
             if evt.GetOldSelection() != wx.NOT_FOUND:
-                # self.GetPage(evt.GetOldSelection()).disable()
                 old_page = self.GetPage(evt.GetOldSelection())
                 if old_page is not None:
                     old_page.disable()
 
             if self.GetCurrentPage() is self._main_menu:
-                self.SetAGWWindowStyleFlag(NOTEBOOK_MENU_STYLE)
+                new_style = NOTEBOOK_MENU_STYLE
             else:
-                self.SetAGWWindowStyleFlag(NOTEBOOK_STYLE)
+                new_style = NOTEBOOK_STYLE
+
+            if self.GetAGWWindowStyleFlag() != new_style:
+                self.SetAGWWindowStyleFlag(new_style)
+
+            # Defer the tab-strip visibility fixup until after all
+            # pending Freeze/Thaw and event processing completes.
+            wx.CallAfter(self._ensure_tabs_visible)
 
         if self.GetCurrentPage() is not None:
             self.GetCurrentPage().enable()
+
+    def _ensure_tabs_visible(self):
+        """Make sure the FlatNotebook tab strip is shown and painted.
+
+        FNB_HIDE_ON_SINGLE_TAB causes the internal PageContainer (_pages)
+        to hide itself inside its OnPaint handler when there is only one
+        tab.  After a second tab is added, the container may still be
+        hidden because the queued Refresh calls were suppressed by the
+        Freeze/Thaw cycle in AddPage.  This helper forces the container
+        visible and triggers a synchronous repaint.
+        """
+        if self.GetPageCount() > 1:
+            if not self._pages.IsShown():
+                self._pages.Show()
+            self._mainSizer.Layout()
+            self._pages.Refresh()
+            self._pages.Update()
 
     def on_app_close(self, evt: wx.CloseEvent):
         if self._force_quit_without_save:
