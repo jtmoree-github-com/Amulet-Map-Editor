@@ -31,6 +31,31 @@ def _format_float(num: float) -> str:
         return f"{num:.0f}"
 
 
+def _set_inverted_colors(button: wx.Button, is_active: bool) -> None:
+    """Set inverted colors on a button based on its active state.
+    
+    Args:
+        button: The button to style
+        is_active: If True, use dark background with light text.
+                   If False, use light background with dark text.
+    """
+    if not button:
+        return
+    
+    if is_active:
+        # Dark background with light/white text
+        button.SetBackgroundColour(wx.Colour(0, 0, 0))  # Black background
+        button.SetForegroundColour(wx.Colour(255, 255, 255))  # White text
+    else:
+        # Light background with dark text (system default)
+        button.SetBackgroundColour(wx.SystemSettings.GetColour(wx.SYS_COLOUR_BTNFACE))
+        button.SetForegroundColour(wx.SystemSettings.GetColour(wx.SYS_COLOUR_BTNTEXT))
+    
+    button.Refresh()
+    button.Update()
+
+
+
 class FilePanel(EditCanvasContainer):
     def __init__(self, canvas: "EditCanvas"):
         super().__init__(canvas)
@@ -114,11 +139,15 @@ class FilePanel(EditCanvasContainer):
             lang.get("program_3d_edit.file_ui.projection_tooltip")
         )
         self._projection_button.Bind(wx.EVT_BUTTON, self._on_projection_button)
+        # Initialize projection button color (3D is default, 2D is inverted)
+        _set_inverted_colors(self._projection_button, self.canvas.camera.projection_mode == Projection.TOP_DOWN)
         self._button_sizer.Add(self._projection_button)
         
         self._move_button = wx.Button(self._button_window, label=lang.get("program_3d_edit.file_ui.move_camera_label"))
         self._move_button.SetToolTip(self._get_move_button_tooltip())
         self._move_button.Bind(wx.EVT_BUTTON, self._on_move_button)
+        # Initialize move button color (camera mode is default, so light background)
+        _set_inverted_colors(self._move_button, self.canvas.wasd_moves_cursor)
         self._button_sizer.Add(self._move_button)
         
         self._location_button = wx.Button(
@@ -218,8 +247,10 @@ class FilePanel(EditCanvasContainer):
     def _on_projection_change(self, evt):
         if self.canvas.camera.projection_mode == Projection.PERSPECTIVE:
             self._projection_button.SetLabel("3D")
+            _set_inverted_colors(self._projection_button, False)
         elif self.canvas.camera.projection_mode == Projection.TOP_DOWN:
             self._projection_button.SetLabel("2D")
+            _set_inverted_colors(self._projection_button, True)
         evt.Skip()
 
     def _on_projection_button(self, evt):
@@ -237,8 +268,10 @@ class FilePanel(EditCanvasContainer):
         """Update the move button label based on the current state."""
         if self.canvas.wasd_moves_cursor:
             self._move_button.SetLabel(lang.get("program_3d_edit.file_ui.move_cursor_label"))
+            _set_inverted_colors(self._move_button, True)
         else:
             self._move_button.SetLabel(lang.get("program_3d_edit.file_ui.move_camera_label"))
+            _set_inverted_colors(self._move_button, False)
         self._move_button.SetToolTip(self._get_move_button_tooltip())
 
     def _get_move_button_tooltip(self) -> str:

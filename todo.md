@@ -6,7 +6,6 @@
 * Clipboard (white)
 
 # todo
-color the toggles for a few seconds?
 * research export interface.  it's confusing
 * add controller handler to use gamepad?
 
@@ -103,3 +102,4 @@ Major changes that may not be liked by current userbase are **bold**.  Significa
 * allow keyboard only paradigm to move camera and selections
 * add controls and mouse dialog window management from OS
 * use modifiers with left and right mouse buttons for accessibility
+* invert color on nav toggles
