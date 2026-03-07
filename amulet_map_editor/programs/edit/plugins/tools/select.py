@@ -40,6 +40,8 @@ from amulet_map_editor.programs.edit.api.key_config import (
     ACT_ROTATE_CURSOR_DOWN,
     ACT_ROTATE_CURSOR_LEFT,
     ACT_ROTATE_CURSOR_RIGHT,
+    ACT_ROTATE_CURSOR_PAGE_UP,
+    ACT_ROTATE_CURSOR_PAGE_DOWN,
     ACT_BOX_CLICK_KEY,
     ACT_CLEAR_START_HIGHLIGHT_BOX_ACTION,
     ACT_TOGGLE_MOVE_TARGET,
@@ -514,6 +516,10 @@ class SelectTool(wx.BoxSizer, DefaultBaseToolUI):
             self._rotate_selection_box("y", -1)
         elif evt.action_id == ACT_ROTATE_CURSOR_RIGHT:
             self._rotate_selection_box("y", 1)
+        elif evt.action_id == ACT_ROTATE_CURSOR_PAGE_UP:
+            self._rotate_selection_box("z", 1)
+        elif evt.action_id == ACT_ROTATE_CURSOR_PAGE_DOWN:
+            self._rotate_selection_box("z", -1)
         evt.Skip()
 
     def _toggle_move_target(self):
@@ -533,6 +539,21 @@ class SelectTool(wx.BoxSizer, DefaultBaseToolUI):
 
     def _on_input_held(self, evt: InputHeldEvent):
         """Handle cursor movement with arrow keys and page up/down."""
+        # When a rotation action is active (Alt+Arrow), the unmodified arrow
+        # action also fires because the input system matches subset modifiers.
+        # Skip all cursor movement to prevent the selection from "walking".
+        _ROTATE_ACTIONS = {
+            ACT_ROTATE_CURSOR_UP,
+            ACT_ROTATE_CURSOR_DOWN,
+            ACT_ROTATE_CURSOR_LEFT,
+            ACT_ROTATE_CURSOR_RIGHT,
+            ACT_ROTATE_CURSOR_PAGE_UP,
+            ACT_ROTATE_CURSOR_PAGE_DOWN,
+        }
+        if evt.action_ids & _ROTATE_ACTIONS:
+            evt.Skip()
+            return
+
         x = y = z = 0
         wasd_consumed = False
         moved_selection = False
@@ -640,65 +661,40 @@ class SelectTool(wx.BoxSizer, DefaultBaseToolUI):
         self._selection.push_selection()
 
     def _rotate_selection_box(self, axis: str, direction: int):
+        """Rotate the selection box 90° around point 1.
+
+        Args:
+            axis: 'x', 'y', or 'z' — the axis to rotate around.
+            direction: +1 or -1 for the rotation direction.
+        """
         p1, p2 = self._selection.active_block_positions
 
-        min_block = (
-            min(p1[0], p2[0]),
-            min(p1[1], p2[1]),
-            min(p1[2], p2[2]),
-        )
-        max_block = (
-            max(p1[0], p2[0]),
-            max(p1[1], p2[1]),
-            max(p1[2], p2[2]),
-        )
+        # Offset from pivot (p1) to the opposite corner (p2)
+        dx = p2[0] - p1[0]
+        dy = p2[1] - p1[1]
+        dz = p2[2] - p1[2]
 
-        min_corner = min_block
-        max_corner = (max_block[0] + 1, max_block[1] + 1, max_block[2] + 1)
+        # Apply 90° rotation to the offset vector
+        if axis == "x":
+            if direction > 0:
+                dx, dy, dz = dx, -dz, dy
+            else:
+                dx, dy, dz = dx, dz, -dy
+        elif axis == "y":
+            if direction > 0:
+                dx, dy, dz = dz, dy, -dx
+            else:
+                dx, dy, dz = -dz, dy, dx
+        elif axis == "z":
+            if direction > 0:
+                dx, dy, dz = -dy, dx, dz
+            else:
+                dx, dy, dz = dy, -dx, dz
+        else:
+            return
 
-        center2 = (
-            min_corner[0] + max_corner[0],
-            min_corner[1] + max_corner[1],
-            min_corner[2] + max_corner[2],
-        )
-
-        transformed_corners = []
-        for x in (min_corner[0], max_corner[0]):
-            for y in (min_corner[1], max_corner[1]):
-                for z in (min_corner[2], max_corner[2]):
-                    rx2 = 2 * x - center2[0]
-                    ry2 = 2 * y - center2[1]
-                    rz2 = 2 * z - center2[2]
-
-                    if axis == "x":
-                        if direction > 0:
-                            nrx2, nry2, nrz2 = rx2, rz2, -ry2
-                        else:
-                            nrx2, nry2, nrz2 = rx2, -rz2, ry2
-                    elif axis == "y":
-                        if direction > 0:
-                            nrx2, nry2, nrz2 = rz2, ry2, -rx2
-                        else:
-                            nrx2, nry2, nrz2 = -rz2, ry2, rx2
-                    else:
-                        return
-
-                    nx = (nrx2 + center2[0]) // 2
-                    ny = (nry2 + center2[1]) // 2
-                    nz = (nrz2 + center2[2]) // 2
-                    transformed_corners.append((nx, ny, nz))
-
-        min_x = min(point[0] for point in transformed_corners)
-        min_y = min(point[1] for point in transformed_corners)
-        min_z = min(point[2] for point in transformed_corners)
-        max_x = max(point[0] for point in transformed_corners)
-        max_y = max(point[1] for point in transformed_corners)
-        max_z = max(point[2] for point in transformed_corners)
-
-        self._selection.active_block_positions = (
-            (min_x, min_y, min_z),
-            (max_x - 1, max_y - 1, max_z - 1),
-        )
+        new_p2 = (p1[0] + dx, p1[1] + dy, p1[2] + dz)
+        self._selection.active_block_positions = (p1, new_p2)
 
     def _on_resize(self, evt):
         self._resize()

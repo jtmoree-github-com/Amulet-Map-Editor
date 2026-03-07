@@ -33,6 +33,8 @@ from amulet_map_editor.programs.edit.api.key_config import (
     ACT_ROTATE_CURSOR_DOWN,
     ACT_ROTATE_CURSOR_LEFT,
     ACT_ROTATE_CURSOR_RIGHT,
+    ACT_ROTATE_CURSOR_PAGE_UP,
+    ACT_ROTATE_CURSOR_PAGE_DOWN,
     ACT_CURSOR_UP,
     ACT_CURSOR_DOWN,
     ACT_CURSOR_FORWARDS,
@@ -705,6 +707,10 @@ class PasteTool(wx.BoxSizer, DefaultBaseToolUI):
             self._rotate_axis("y", -1)
         elif self._is_enabled and evt.action_id == ACT_ROTATE_CURSOR_RIGHT:
             self._rotate_axis("y", 1)
+        elif self._is_enabled and evt.action_id == ACT_ROTATE_CURSOR_PAGE_UP:
+            self._rotate_axis("z", 1)
+        elif self._is_enabled and evt.action_id == ACT_ROTATE_CURSOR_PAGE_DOWN:
+            self._rotate_axis("z", -1)
         evt.Skip()
 
     def _rotate_axis(self, axis: str, direction: int):
@@ -713,6 +719,8 @@ class PasteTool(wx.BoxSizer, DefaultBaseToolUI):
             rotation_change = rotation_matrix_xyz(angle, 0, 0)
         elif axis == "y":
             rotation_change = rotation_matrix_xyz(0, angle, 0)
+        elif axis == "z":
+            rotation_change = rotation_matrix_xyz(0, 0, angle)
         else:
             return
 
@@ -803,6 +811,21 @@ class PasteTool(wx.BoxSizer, DefaultBaseToolUI):
 
     def _on_input_held(self, evt: InputHeldEvent):
         if not self._is_enabled:
+            evt.Skip()
+            return
+
+        # When a rotation action is active (Alt+Arrow), the unmodified arrow
+        # action also fires because the input system matches subset modifiers.
+        # Skip all cursor movement to prevent the paste caret from "walking".
+        _ROTATE_ACTIONS = {
+            ACT_ROTATE_CURSOR_UP,
+            ACT_ROTATE_CURSOR_DOWN,
+            ACT_ROTATE_CURSOR_LEFT,
+            ACT_ROTATE_CURSOR_RIGHT,
+            ACT_ROTATE_CURSOR_PAGE_UP,
+            ACT_ROTATE_CURSOR_PAGE_DOWN,
+        }
+        if evt.action_ids & _ROTATE_ACTIONS:
             evt.Skip()
             return
 

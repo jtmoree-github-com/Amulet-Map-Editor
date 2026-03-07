@@ -12,10 +12,8 @@
 * cursor /highlight speed not tied to camera speed.  maybe have a different speed cotnrol
 * can we make the mode controls dockable so that they can open in a different window?
 * research export interface.  it's confusing
-* make controls dialogs available on program open?
 
 ## bugs
-* alt page up /down rotation walks 
 * alt movements do not flip/rotate cursor with  wasd 
 * There are no pneumonics on many menu entries.  suggest improvements
 * fkeys do not work when keyboard focus is in a text field?
@@ -37,6 +35,7 @@ Breaking and significant changes are **bold**.  These are major departures from 
 * **Change Alt for inspect block to require a mouse click**
 * **C to cycle through the highlight targets (formerly click and hold buttons)**
 * paste caret (preview caret) now starts on top of clipboard instead of near camera
+* fixed Alt rotation causing selection boxes to walk/drift along an axis
 * move mode switching buttons from bottom of screen into nav bar like 2d/3d and move mouse/cursor
 * map consistent colors to relate settings with 3d view targets
 * inspect block with keyboard
