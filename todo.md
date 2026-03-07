@@ -6,7 +6,6 @@
 * Clipboard (white)
 
 # todo
-Paste shoulde put the caret on top of the clipboard
 
 ## misc
 * ctrl+shift+alt+D to toggle dimension?
@@ -22,7 +21,6 @@ Paste shoulde put the caret on top of the clipboard
 * There are no pneumonics on many menu entries.  suggest improvements
 * fkeys do not work when keyboard focus is in a text field?
 * hot keys on save dialog disappeared?  every other load?
-* why does it ask to save when I have not changed anything?  is it recording camera postition?
 
 # done
 
@@ -39,6 +37,7 @@ breaking and significant changes are marked with !.  These are major departures 
 * **place cursor on world load**
 * **Change Alt for inspect block to require a mouse click**
 * **C to cycle through the highlight targets (formerly click and hold buttons)**
+* paste caret (preview caret) now starts on top of clipboard instead of near camera
 * move mode switching buttons from bottom of screen into nav bar like 2d/3d and move mouse/cursor
 * map consistent colors to relate settings with 3d view targets
 * inspect block with keyboard
@@ -84,6 +83,7 @@ breaking and significant changes are marked with !.  These are major departures 
 
 ## Layout and Tabs
 * fixed tab not displaying on program load
+* fixed spurious "unsaved changes" prompt when closing world without making changes
 * don't open new window for open world
 * add "Convert World" title to Convert tab and make "Currently Opened World" a title on About tab
 * remove Close world button from About and convert tabs in favor of the tab X and hotkeys

@@ -254,9 +254,11 @@ class BaseEditCanvas(EventCanvas):
             target_y = int(round(camera_y + forward_y * 5 - 2))
             target_z = int(round(camera_z + forward_z * 5))
 
-            self.selection.selection_corners = [
+            # Use set_selection_corners to avoid creating an undo point for
+            # the initial cursor placement on world load.
+            self.selection.set_selection_corners([
                 ((target_x, target_y, target_z), (target_x + 1, target_y + 1, target_z + 1))
-            ]
+            ])
 
     def bind_events(self):
         """Set up all events required to run.

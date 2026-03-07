@@ -540,20 +540,29 @@ class PasteTool(wx.BoxSizer, DefaultBaseToolUI):
         self._is_enabled = True
         self._mouse_grabbed = False
 
-        camera_x, camera_y, camera_z = self.canvas.camera.location
-        yaw, pitch = self.canvas.camera.rotation
-        yaw_rad = math.radians(yaw)
-        pitch_rad = math.radians(pitch)
+        # Place the paste caret on top of the clipboard (where the copy was made)
+        # rather than near the camera, so users know exactly where their copied
+        # content will be pasted.
+        clipboard_selection = self.canvas.selection.selection_group
+        if clipboard_selection:
+            # Use the minimum corner of the clipboard selection
+            paste_location = tuple(int(v) for v in clipboard_selection.min)
+        else:
+            # Fallback to camera position if no clipboard selection exists
+            camera_x, camera_y, camera_z = self.canvas.camera.location
+            yaw, pitch = self.canvas.camera.rotation
+            yaw_rad = math.radians(yaw)
+            pitch_rad = math.radians(pitch)
 
-        forward_x = math.cos(pitch_rad) * math.sin(yaw_rad)
-        forward_y = -math.sin(pitch_rad)
-        forward_z = math.cos(pitch_rad) * math.cos(yaw_rad)
+            forward_x = math.cos(pitch_rad) * math.sin(yaw_rad)
+            forward_y = -math.sin(pitch_rad)
+            forward_z = math.cos(pitch_rad) * math.cos(yaw_rad)
 
-        paste_location = (
-            int(round(camera_x + forward_x * 5)),
-            int(round(camera_y + forward_y * 5 - 2)),
-            int(round(camera_z + forward_z * 5)),
-        )
+            paste_location = (
+                int(round(camera_x + forward_x * 5)),
+                int(round(camera_y + forward_y * 5 - 2)),
+                int(round(camera_z + forward_z * 5)),
+            )
         
         # Clear and add the structure with the correct location
         self.canvas.renderer.fake_levels.clear()
