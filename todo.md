@@ -7,8 +7,18 @@
 
 # todo
 
+ctrl+Q and Esc should cancel open world
+* add delete option to main menu?
+move MRU to main menu
+
+Ctrl+A
+Alt+A
+
+* hotkey to start scaling operation?
+
 ## misc
 * can we have a blender 3d keymap preset?
+-- not really.   the workflows are too different.
 * ctrl+shift+alt+D to toggle dimension?
 * cursor /highlight speed not tied to camera speed.  maybe have a different speed cotnrol
 * can we make the mode controls dockable so that they can open in a different window?
@@ -92,3 +102,5 @@ Breaking and significant changes are **bold**.  These are major departures from 
 * add friendly Bedrock world-lock handling with a clear “world database locked” warning instead of generic traceback flow
 * improve Go To dialog usability by auto-focusing X on open and supporting Enter navigation x → y → z → OK
 * update language strings for terminology consistency (Highlighter, selection/highlighter wording, new mouse action labels)
+* Add menu and hotkey for 'Save As'
+* support save as different format

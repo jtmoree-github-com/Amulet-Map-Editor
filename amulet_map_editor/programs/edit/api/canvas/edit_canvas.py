@@ -18,7 +18,7 @@ from ..key_config import (
     MouseKeys,
     ACT_PASTE,
     ACT_HELP,
-    ACT_SAVE_ALL,
+    ACT_SAVE_AS,
     ACT_SAVE_ALL_CLOSE,
     ACT_QUIT_WITHOUT_SAVE,
     ACT_SWITCH_TO_SELECT_MODE,
@@ -319,10 +319,15 @@ class EditCanvas(BaseEditCanvas):
             self._move_camera_to_selection_cursor()
         elif evt.action_id == ACT_TELEPORT_CURSOR_TO_CAMERA:
             self._teleport_selection_cursor_to_camera()
-        elif evt.action_id == ACT_SAVE_ALL:
-            self._save_all_worlds()
+        elif evt.action_id == ACT_SAVE_AS:
+            # Delegate to WorldPageUI's _save_as via EditExtension
+            edit_ext = self.GetParent()
+            if edit_ext is not None:
+                world_page = edit_ext.GetParent()
+                if hasattr(world_page, "_save_as"):
+                    world_page._save_as()
         elif evt.action_id == ACT_SAVE_ALL_CLOSE:
-            self._save_all_worlds()
+            self.save()
             close_level(self.world.level_path)
         elif evt.action_id == ACT_QUIT_WITHOUT_SAVE:
             top_level_parent = self.GetTopLevelParent()
@@ -408,6 +413,192 @@ class EditCanvas(BaseEditCanvas):
             for box in selection_group.selection_boxes
         ]
         self.selection.selection_corners = translated_corners
+
+    def _save_as(self):
+        """Save current world to a new location (Save As functionality)."""
+        import os
+        import base64
+        import shutil
+        import zipfile
+        import tempfile
+        from amulet_map_editor import lang
+
+        current_path = self.world.level_path
+        is_mcworld = current_path.lower().endswith('.mcworld')
+        level_wrapper = self.world.level_wrapper
+        current_world_name = level_wrapper.level_name
+        is_bedrock = level_wrapper.platform == "bedrock"
+
+        # Step 1: Custom dialog with world name + format radio buttons
+        dialog = wx.Dialog(self, title="Save As", style=wx.DEFAULT_DIALOG_STYLE)
+        sizer = wx.BoxSizer(wx.VERTICAL)
+
+        # World name
+        sizer.Add(
+            wx.StaticText(dialog, label="World name:"),
+            0, wx.LEFT | wx.RIGHT | wx.TOP, 10,
+        )
+        name_ctrl = wx.TextCtrl(dialog, value=current_world_name)
+        sizer.Add(name_ctrl, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP, 10)
+
+        # Format radio buttons
+        sizer.Add(
+            wx.StaticText(dialog, label="Save format:"),
+            0, wx.LEFT | wx.RIGHT | wx.TOP, 10,
+        )
+        rb_mcworld = wx.RadioButton(
+            dialog, label=".mcworld file", style=wx.RB_GROUP,
+        )
+        rb_folder = wx.RadioButton(dialog, label="World directory")
+        sizer.Add(rb_mcworld, 0, wx.LEFT | wx.RIGHT | wx.TOP, 10)
+        sizer.Add(rb_folder, 0, wx.LEFT | wx.RIGHT, 10)
+
+        # Default to current format
+        if is_mcworld:
+            rb_mcworld.SetValue(True)
+        else:
+            rb_folder.SetValue(True)
+
+        # OK / Cancel buttons
+        btn_sizer = dialog.CreateStdDialogButtonSizer(wx.OK | wx.CANCEL)
+        sizer.Add(btn_sizer, 0, wx.EXPAND | wx.ALL, 10)
+
+        dialog.SetSizer(sizer)
+        sizer.Fit(dialog)
+
+        # Set focus and select all text
+        name_ctrl.SetFocus()
+        name_ctrl.SelectAll()
+
+        if dialog.ShowModal() != wx.ID_OK:
+            dialog.Destroy()
+            return
+
+        new_world_name = name_ctrl.GetValue().strip()
+        save_as_mcworld = rb_mcworld.GetValue()
+        dialog.Destroy()
+
+        if not new_world_name:
+            wx.MessageBox("Name cannot be empty.", "Error", wx.OK | wx.ICON_ERROR)
+            return
+
+        # Step 2: Pick the destination location
+        default_parent = os.path.dirname(current_path)
+
+        if save_as_mcworld:
+            file_name = new_world_name
+            if not file_name.lower().endswith('.mcworld'):
+                file_name += '.mcworld'
+
+            with wx.DirDialog(
+                self,
+                f"Choose where to save '{file_name}'",
+                defaultPath=default_parent,
+                style=wx.DD_DEFAULT_STYLE,
+            ) as loc_dialog:
+                if loc_dialog.ShowModal() == wx.ID_CANCEL:
+                    return
+                new_path = os.path.join(loc_dialog.GetPath(), file_name)
+        else:
+            if is_bedrock:
+                # Bedrock uses 8 random bytes encoded as standard base64 (12 chars with =)
+                folder_name = base64.b64encode(os.urandom(8)).decode("ascii")
+            else:
+                folder_name = new_world_name
+
+            with wx.DirDialog(
+                self,
+                f"Choose where to save folder '{folder_name}'",
+                defaultPath=default_parent,
+                style=wx.DD_DEFAULT_STYLE,
+            ) as loc_dialog:
+                if loc_dialog.ShowModal() == wx.ID_CANCEL:
+                    return
+                new_path = os.path.join(loc_dialog.GetPath(), folder_name)
+
+        # Check if destination already exists
+        if os.path.exists(new_path):
+            if wx.MessageBox(
+                f"'{new_path}' already exists. Overwrite?",
+                "Confirm Overwrite",
+                wx.YES_NO | wx.ICON_QUESTION,
+            ) != wx.YES:
+                return
+
+        # Capture source format info before entering the background thread
+        src_platform = level_wrapper.platform
+        src_version = level_wrapper.version
+        overwrite = os.path.exists(new_path)
+        # .mcworld is a zipped Bedrock (LevelDB) world
+        if save_as_mcworld:
+            from amulet.level.formats.leveldb_world import LevelDBFormat
+            FormatClass = LevelDBFormat
+        else:
+            FormatClass = type(level_wrapper)
+
+        # Perform the save operation
+        def save_as_operation() -> Generator[OperationYieldType, None, Any]:
+            dest_world = None
+            tmp_dir = None
+            try:
+                if save_as_mcworld:
+                    # Save to a temp directory first, then zip it
+                    tmp_dir = tempfile.mkdtemp(prefix="amulet_saveas_")
+                    save_path = tmp_dir
+                else:
+                    save_path = new_path
+
+                yield 0.0, "Creating destination world..."
+                dest_world = FormatClass(save_path)
+                dest_world.create_and_open(
+                    src_platform, src_version,
+                    overwrite=True if save_as_mcworld else overwrite,
+                )
+                dest_world.level_name = new_world_name
+
+                yield 0.05, "Copying world data..."
+
+                def progress_callback(chunk_index, chunk_total):
+                    if chunk_total > 0:
+                        pass  # progress reported via yield
+
+                self.world.save(dest_world, progress_callback)
+
+                yield 0.90, "Finalizing..."
+                dest_world.close()
+                dest_world = None
+
+                if save_as_mcworld:
+                    yield 0.92, "Packaging .mcworld file..."
+                    # Remove existing file if overwriting
+                    if os.path.exists(new_path):
+                        os.remove(new_path)
+                    with zipfile.ZipFile(new_path, 'w', zipfile.ZIP_DEFLATED) as zf:
+                        for root, dirs, files in os.walk(tmp_dir):
+                            for f in files:
+                                abs_path = os.path.join(root, f)
+                                arc_name = os.path.relpath(abs_path, tmp_dir)
+                                zf.write(abs_path, arc_name)
+
+                yield 1.0, "Save complete!"
+
+            except Exception as e:
+                if dest_world is not None:
+                    try:
+                        dest_world.close()
+                    except Exception:
+                        pass
+                raise OperationError(f"Failed to save world: {str(e)}")
+            finally:
+                if tmp_dir is not None:
+                    shutil.rmtree(tmp_dir, ignore_errors=True)
+
+        self._run_operation(
+            save_as_operation,
+            "Save As",
+            "Saving world to new location...",
+            False,
+        )
 
     def _save_all_worlds(self):
         """Save all open worlds in the notebook."""

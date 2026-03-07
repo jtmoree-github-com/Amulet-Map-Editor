@@ -265,7 +265,8 @@ action.act_inspect_block=Inspect Block
 action.act_inspect_point_1=Inspect Point 1
 action.act_change_projection=Toggle Projection
 action.act_change_projection_mouse=Toggle Projection
-action.act_save_all_close=Save All and Quit
+action.act_save_as=Save As...
+action.act_save_all_close=Save and Quit
 action.act_quit_without_save=Quit Without Saving
 
 ## Menu bar

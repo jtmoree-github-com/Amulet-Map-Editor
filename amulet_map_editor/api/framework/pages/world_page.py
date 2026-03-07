@@ -1,4 +1,9 @@
 import threading
+import os
+import base64
+import shutil
+import zipfile
+import tempfile
 
 import wx
 from typing import List, Tuple, Type, Union, Optional
@@ -89,12 +94,203 @@ class WorldPageUI(wx.Notebook, BasePageUI):
 
     def menu(self, menu: MenuData) -> MenuData:
         menu.setdefault(lang.get("menu_bar.file.menu_name"), {}).setdefault(
+            "system", {}
+        ).setdefault(
+            f"&Save As...\tCtrl+Shift+S",
+            lambda evt: self._save_as(),
+        )
+        menu.setdefault(lang.get("menu_bar.file.menu_name"), {}).setdefault(
             "exit", {}
         ).setdefault(
             f"&{lang.get('menu_bar.file.close_world')}/Quit\tCtrl+Q",
             lambda evt: app.close_level(self.path),
         )
         return self.GetPage(self.GetSelection()).menu(menu)
+
+    def _save_as(self):
+        """Save the current world to a new location."""
+        world = self.world
+        current_path = world.level_path
+        is_mcworld = current_path.lower().endswith('.mcworld')
+        level_wrapper = world.level_wrapper
+        current_world_name = level_wrapper.level_name
+        is_bedrock = level_wrapper.platform == "bedrock"
+
+        # Step 1: Custom dialog with world name + format radio buttons
+        dialog = wx.Dialog(self, title="Save As", style=wx.DEFAULT_DIALOG_STYLE)
+        sizer = wx.BoxSizer(wx.VERTICAL)
+
+        sizer.Add(
+            wx.StaticText(dialog, label="World name:"),
+            0, wx.LEFT | wx.RIGHT | wx.TOP, 10,
+        )
+        name_ctrl = wx.TextCtrl(dialog, value=current_world_name)
+        sizer.Add(name_ctrl, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP, 10)
+
+        sizer.Add(
+            wx.StaticText(dialog, label="Save format:"),
+            0, wx.LEFT | wx.RIGHT | wx.TOP, 10,
+        )
+        rb_mcworld = wx.RadioButton(
+            dialog, label=".mcworld file", style=wx.RB_GROUP,
+        )
+        rb_folder = wx.RadioButton(dialog, label="World directory")
+        sizer.Add(rb_mcworld, 0, wx.LEFT | wx.RIGHT | wx.TOP, 10)
+        sizer.Add(rb_folder, 0, wx.LEFT | wx.RIGHT, 10)
+
+        if is_mcworld:
+            rb_mcworld.SetValue(True)
+        else:
+            rb_folder.SetValue(True)
+
+        btn_sizer = dialog.CreateStdDialogButtonSizer(wx.OK | wx.CANCEL)
+        sizer.Add(btn_sizer, 0, wx.EXPAND | wx.ALL, 10)
+        dialog.SetSizer(sizer)
+        sizer.Fit(dialog)
+
+        name_ctrl.SetFocus()
+        name_ctrl.SelectAll()
+
+        if dialog.ShowModal() != wx.ID_OK:
+            dialog.Destroy()
+            return
+
+        new_world_name = name_ctrl.GetValue().strip()
+        save_as_mcworld = rb_mcworld.GetValue()
+        dialog.Destroy()
+
+        if not new_world_name:
+            wx.MessageBox("Name cannot be empty.", "Error", wx.OK | wx.ICON_ERROR)
+            return
+
+        # Step 2: Pick the destination location
+        default_parent = os.path.dirname(current_path)
+
+        if save_as_mcworld:
+            file_name = new_world_name
+            if not file_name.lower().endswith('.mcworld'):
+                file_name += '.mcworld'
+            with wx.DirDialog(
+                self,
+                f"Choose where to save '{file_name}'",
+                defaultPath=default_parent,
+                style=wx.DD_DEFAULT_STYLE,
+            ) as loc_dialog:
+                if loc_dialog.ShowModal() == wx.ID_CANCEL:
+                    return
+                new_path = os.path.join(loc_dialog.GetPath(), file_name)
+        else:
+            if is_bedrock:
+                folder_name = base64.b64encode(os.urandom(8)).decode("ascii")
+            else:
+                folder_name = new_world_name
+            with wx.DirDialog(
+                self,
+                f"Choose where to save folder '{folder_name}'",
+                defaultPath=default_parent,
+                style=wx.DD_DEFAULT_STYLE,
+            ) as loc_dialog:
+                if loc_dialog.ShowModal() == wx.ID_CANCEL:
+                    return
+                new_path = os.path.join(loc_dialog.GetPath(), folder_name)
+
+        if os.path.exists(new_path):
+            if wx.MessageBox(
+                f"'{new_path}' already exists. Overwrite?",
+                "Confirm Overwrite",
+                wx.YES_NO | wx.ICON_QUESTION,
+            ) != wx.YES:
+                return
+
+        src_platform = level_wrapper.platform
+        src_version = level_wrapper.version
+        overwrite = os.path.exists(new_path)
+
+        if save_as_mcworld:
+            from amulet.level.formats.leveldb_world import LevelDBFormat
+            FormatClass = LevelDBFormat
+        else:
+            FormatClass = type(level_wrapper)
+
+        # Run save in a thread with progress dialog
+        progress_dialog = wx.ProgressDialog(
+            "Save As",
+            "Saving world to new location...",
+            maximum=10000,
+            parent=self,
+            style=wx.PD_APP_MODAL | wx.PD_ELAPSED_TIME | wx.PD_AUTO_HIDE,
+        )
+        progress_dialog.Fit()
+
+        error_message = [None]
+
+        def do_save():
+            dest_world = None
+            tmp_dir = None
+            try:
+                if save_as_mcworld:
+                    tmp_dir = tempfile.mkdtemp(prefix="amulet_saveas_")
+                    save_path = tmp_dir
+                else:
+                    save_path = new_path
+
+                wx.CallAfter(progress_dialog.Update, 0, "Creating destination world...")
+                dest_world = FormatClass(save_path)
+                dest_world.create_and_open(
+                    src_platform, src_version,
+                    overwrite=True if save_as_mcworld else overwrite,
+                )
+                dest_world.level_name = new_world_name
+
+                wx.CallAfter(progress_dialog.Update, 500, "Copying world data...")
+
+                def progress_callback(chunk_index, chunk_total):
+                    if chunk_total > 0:
+                        pct = 500 + int((chunk_index / chunk_total) * 8500)
+                        wx.CallAfter(progress_dialog.Update, min(pct, 9000))
+
+                world.save(dest_world, progress_callback)
+
+                wx.CallAfter(progress_dialog.Update, 9000, "Finalizing...")
+                dest_world.close()
+                dest_world = None
+
+                if save_as_mcworld:
+                    wx.CallAfter(progress_dialog.Update, 9200, "Packaging .mcworld file...")
+                    if os.path.exists(new_path):
+                        os.remove(new_path)
+                    with zipfile.ZipFile(new_path, 'w', zipfile.ZIP_DEFLATED) as zf:
+                        for root, dirs, files in os.walk(tmp_dir):
+                            for f in files:
+                                abs_path = os.path.join(root, f)
+                                arc_name = os.path.relpath(abs_path, tmp_dir)
+                                zf.write(abs_path, arc_name)
+
+            except Exception as e:
+                if dest_world is not None:
+                    try:
+                        dest_world.close()
+                    except Exception:
+                        pass
+                error_message[0] = str(e)
+            finally:
+                if tmp_dir is not None:
+                    shutil.rmtree(tmp_dir, ignore_errors=True)
+
+        save_thread = threading.Thread(target=do_save)
+        save_thread.start()
+        while save_thread.is_alive():
+            save_thread.join(0.1)
+            wx.Yield()
+        progress_dialog.Update(10000)
+        progress_dialog.Destroy()
+
+        if error_message[0]:
+            wx.MessageBox(
+                f"Failed to save world:\n{error_message[0]}",
+                "Save As Error",
+                wx.OK | wx.ICON_ERROR,
+            )
 
     def _load_extensions(self):
         """Load and create instances of each of the extensions"""

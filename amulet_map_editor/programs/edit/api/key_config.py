@@ -124,7 +124,7 @@ ACT_TOGGLE_FULLSCREEN = "ACT_TOGGLE_FULLSCREEN"
 ACT_MOVE_CAMERA_TO_CURSOR = "ACT_MOVE_CAMERA_TO_CURSOR"
 ACT_TELEPORT_CURSOR_TO_CAMERA = "ACT_TELEPORT_CURSOR_TO_CAMERA"
 ACT_HELP = "ACT_HELP"
-ACT_SAVE_ALL = "ACT_SAVE_ALL"
+ACT_SAVE_AS = "ACT_SAVE_AS"
 ACT_SAVE_ALL_CLOSE = "ACT_SAVE_ALL_CLOSE"
 ACT_QUIT_WITHOUT_SAVE = "ACT_QUIT_WITHOUT_SAVE"
 
@@ -182,7 +182,7 @@ KeyboardKeys: List[KeyActionType] = [
     ACT_MOVE_CAMERA_TO_CURSOR,
     ACT_TELEPORT_CURSOR_TO_CAMERA,
     ACT_HELP,
-    ACT_SAVE_ALL,
+    ACT_SAVE_AS,
     ACT_SAVE_ALL_CLOSE,
     ACT_QUIT_WITHOUT_SAVE,
 ]
@@ -241,7 +241,7 @@ PresetKeybinds: KeybindContainer = {
         ACT_SWITCH_TO_IMPORT_MODE: ((), F10),
         ACT_TOGGLE_FULLSCREEN: ((), F11),
         ACT_SWITCH_TO_CHUNK_MODE: ((), F12),
-        ACT_SAVE_ALL: ((Control, Shift), S),
+        ACT_SAVE_AS: ((Control, Shift), S),
         ACT_SAVE_ALL_CLOSE: ((Control, Shift), Q),
         ACT_QUIT_WITHOUT_SAVE: ((Control, Alt, Shift), Q),
         ACT_TOGGLE_MOVE_TARGET: ((), C),
@@ -304,7 +304,7 @@ PresetKeybinds: KeybindContainer = {
         ACT_SWITCH_TO_IMPORT_MODE: ((), F10),
         ACT_TOGGLE_FULLSCREEN: ((), F11),
         ACT_SWITCH_TO_CHUNK_MODE: ((), F12),
-        ACT_SAVE_ALL: ((Control, Shift), S),
+        ACT_SAVE_AS: ((Control, Shift), S),
         ACT_SAVE_ALL_CLOSE: ((Control, Shift), Q),
         ACT_QUIT_WITHOUT_SAVE: ((Control, Alt, Shift), Q),
         ACT_TOGGLE_MOVE_TARGET: ((), C),

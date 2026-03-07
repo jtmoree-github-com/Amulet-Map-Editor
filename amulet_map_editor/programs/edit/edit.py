@@ -33,7 +33,7 @@ from amulet_map_editor.programs.edit.api.key_config import (
     ACT_DECR_SPEED,
     ACT_ZOOM_IN,
     ACT_ZOOM_OUT,
-    ACT_SAVE_ALL,
+    ACT_SAVE_AS,
     ACT_SAVE_ALL_CLOSE,
     ACT_QUIT_WITHOUT_SAVE,
     ACT_PASTE,
@@ -99,6 +99,7 @@ class EditExtension(wx.Panel, BaseProgram):
         self._world = world
         self._canvas = None
         self._setup_thread = None
+        self.Bind(wx.EVT_CHAR_HOOK, self._on_char_hook)
 
         self._sizer.AddStretchSpacer(1)
         self._temp_msg = wx.StaticText(
@@ -185,6 +186,8 @@ class EditExtension(wx.Panel, BaseProgram):
             self.Layout()
             # This must be called after the show handler is run
             wx.CallAfter(self._canvas.enable)
+            # Give the canvas focus so keyboard shortcuts work immediately
+            wx.CallAfter(self._canvas.SetFocus)
             self._setup_thread = None
         except Exception as e:
             wx.CallAfter(self._display_error, str(e), traceback.format_exc())
@@ -283,6 +286,16 @@ class EditExtension(wx.Panel, BaseProgram):
         ).setdefault(
             f"&{lang.get('program_3d_edit.menu_bar.file.save')}\tCtrl+S",
             lambda evt: self._canvas.save(),
+        )
+        menu.setdefault(lang.get("menu_bar.file.menu_name"), {}).setdefault(
+            "system", {}
+        ).setdefault(
+            self._menu_label(
+                lang.get('action.act_save_as'),
+                ACT_SAVE_AS,
+                "Ctrl+Shift+S",
+            ),
+            lambda evt: self._save_as(),
         )
         menu.setdefault(lang.get("menu_bar.file.menu_name"), {}).setdefault(
             "system", {}
@@ -459,6 +472,18 @@ class EditExtension(wx.Panel, BaseProgram):
         if "_" in text:
             return "".join(word.capitalize() for word in text.split("_"))
         return text
+
+    def _on_char_hook(self, evt: wx.KeyEvent):
+        """Handle key events before children to support global hotkeys."""
+        if evt.ControlDown() and evt.ShiftDown() and evt.GetKeyCode() == ord('S'):
+            self._save_as()
+            return
+        evt.Skip()
+
+    def _save_as(self):
+        parent = self.GetParent()
+        if hasattr(parent, "_save_as"):
+            parent._save_as()
 
     def _save_all_and_close(self):
         if self._canvas is not None:
