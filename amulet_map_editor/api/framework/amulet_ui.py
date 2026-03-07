@@ -166,6 +166,8 @@ class AmuletUI(wx.Frame):
         current_page = self._level_notebook.GetCurrentPage()
         if isinstance(current_page, WorldPageUI):
             self.close_level(current_page.path)
+        elif current_page is self._level_notebook._world_selector:
+            self._level_notebook.close_world_select_tab()
         elif current_page is self._level_notebook._main_menu:
             self.Close()
 
@@ -198,6 +200,10 @@ class AmuletUI(wx.Frame):
     def open_world_select_tab(self):
         """Open the world selector as a tab. You should use the method in the app."""
         self._level_notebook.open_world_select_tab()
+
+    def close_world_select_tab(self):
+        """Close the world selector tab if open."""
+        self._level_notebook.close_world_select_tab()
 
     def close_level(self, path: str):
         """Close a given level. You should use the method in the app."""
@@ -374,6 +380,16 @@ class AmuletLevelNotebook(flatnotebook.FlatNotebook):
         # Create a new world selector tab
         self._world_selector = WorldSelectPageUI(self)
         self._add_world_tab(self._world_selector, lang.get("select_world.title"))
+
+    def close_world_select_tab(self):
+        """Close the world selector tab if it is open."""
+        if self._world_selector is None:
+            return
+
+        page_index = self.GetPageIndex(self._world_selector)
+        if page_index != wx.NOT_FOUND:
+            self.DeletePage(page_index)
+        self._world_selector = None
 
     def _add_world_tab(self, page: BasePageUI, obj_name: str):
         """Add a tab and enable it."""

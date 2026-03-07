@@ -812,6 +812,7 @@ class WorldSelectPageUI(wx.Panel, BasePageUI):
     def __init__(self, parent: wx.Window):
         super().__init__(parent)
         self._parent_notebook = parent
+        self.Bind(wx.EVT_CHAR_HOOK, self._on_char_hook)
 
         sizer = wx.BoxSizer(wx.VERTICAL)
         self.SetSizer(sizer)
@@ -836,13 +837,34 @@ class WorldSelectPageUI(wx.Panel, BasePageUI):
         select_world = WorldSelectUI(self, self._on_world_selected)
         right_sizer.Add(select_world, 1, wx.ALL | wx.EXPAND, 5)
 
+    def _close_open_world_tab(self):
+        """Close the open-world selector tab and return to the previous tab."""
+        if hasattr(self._parent_notebook, "close_world_select_tab"):
+            self._parent_notebook.close_world_select_tab()
+
+    def _on_char_hook(self, evt: wx.KeyEvent):
+        """Allow Esc and Ctrl+Q to cancel the open-world tab."""
+        key_code = evt.GetKeyCode()
+        if key_code == wx.WXK_ESCAPE:
+            self._close_open_world_tab()
+            return
+
+        if (
+            key_code in (ord("Q"), ord("q"))
+            and evt.ControlDown()
+            and not evt.ShiftDown()
+            and not evt.AltDown()
+        ):
+            self._close_open_world_tab()
+            return
+
+        evt.Skip()
+
     def _on_world_selected(self, path):
         """Called when a world is selected. Updates recent worlds and opens the world."""
         self._recent_worlds.rebuild(path)
         # Close this tab
-        page_index = self._parent_notebook.GetPageIndex(self)
-        if page_index != wx.NOT_FOUND:
-            self._parent_notebook.DeletePage(page_index)
+        self._close_open_world_tab()
         # Open the world
         app.open_level(path)
 

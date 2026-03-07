@@ -7,7 +7,6 @@
 
 # todo
 
-ctrl+Q and Esc should cancel open world
 * add delete option to main menu?
 move MRU to main menu
 
@@ -104,3 +103,4 @@ Breaking and significant changes are **bold**.  These are major departures from 
 * update language strings for terminology consistency (Highlighter, selection/highlighter wording, new mouse action labels)
 * Add menu and hotkey for 'Save As'
 * support save as different format
+* ctrl+Q and Esc cancel open world
