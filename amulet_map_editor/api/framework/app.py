@@ -95,6 +95,10 @@ class AmuletApp(wx.App):
         """Open the backups tab."""
         self._amulet_ui.open_backups_tab()
 
+    def open_delete_tab(self):
+        """Open the delete worlds tab."""
+        self._amulet_ui.open_delete_tab()
+
     def close_level(self, path: str):
         """
         Close a level tab.
@@ -135,3 +139,8 @@ def close_level(path: str):
 def open_backups_tab():
     """Open the backups tab."""
     get_app().open_backups_tab()
+
+
+def open_delete_tab():
+    """Open the delete worlds tab."""
+    get_app().open_delete_tab()

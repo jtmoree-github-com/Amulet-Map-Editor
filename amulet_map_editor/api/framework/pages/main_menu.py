@@ -63,6 +63,11 @@ class AmuletMainMenu(wx.Panel, BasePageUI):
         self._backups_button.Bind(wx.EVT_BUTTON, lambda _: app.open_backups_tab())
         menu_sizer.Add(self._backups_button, 0, wx.ALL | wx.CENTER, 5)
 
+        self._delete_button = wx.Button(self, size=(400, 70), label="Delete Worlds")
+        self._delete_button.SetFont(button_font)
+        self._delete_button.Bind(wx.EVT_BUTTON, lambda _: app.open_delete_tab())
+        menu_sizer.Add(self._delete_button, 0, wx.ALL | wx.CENTER, 5)
+
         self._user_manual_button = wx.Button(self, size=(400, 70))
         self._user_manual_button.SetFont(button_font)
         self._user_manual_button.Bind(wx.EVT_BUTTON, self._documentation)

@@ -7,7 +7,6 @@
 
 # todo
 
-* add delete button to main menu under backups button.  It should open a new tab.  On the tab it should list a text field and file chooser for where the minecraft worlds are stored.  should use the same location as the backups menu for the location of the files.    Next it should list every world found with a Delete button next to it.   On click a modal dialog should raise asking for confirmation with the default button as Cancel.  The other button should be "YES DELETE THIS WORLD.  I AM SURE".
 * in preferences dialog add a Button next to the Recent Worlds Limit on the right named "Clear" which deletes all of them.
 
 
