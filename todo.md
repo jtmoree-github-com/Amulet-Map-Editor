@@ -8,13 +8,13 @@
 # todo
 
 ## misc
+* can we have a blender 3d keymap preset?
 * ctrl+shift+alt+D to toggle dimension?
 * cursor /highlight speed not tied to camera speed.  maybe have a different speed cotnrol
 * can we make the mode controls dockable so that they can open in a different window?
 * research export interface.  it's confusing
 
 ## bugs
-* alt movements do not flip/rotate cursor with  wasd 
 * There are no pneumonics on many menu entries.  suggest improvements
 * fkeys do not work when keyboard focus is in a text field?
 * hot keys on save dialog disappeared?  every other load?
