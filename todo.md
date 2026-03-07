@@ -7,8 +7,10 @@
 
 # todo
 
-* add delete option to main menu?
-move MRU to main menu
+* add button to main menu named Backups.   It should open a new tab with controls for performaing backups.   There should be a text field and a file chooser to Choose the Folder where the backups will be written.  This should be saved and put back when the user re-opens amulet.  There should be a text field and folder chooser for where the minecraft worlds are stored and default to wherever they are.  A button named 'Backup Now' should be at the bottom.   When clicked it should backup everything in the worlds folder to a zip file in the backup folder.  the zip file should be named after the current date and time.   Default the backup folder to the user home folder.
+* add delete button to main menu.  It should open a new tab.  On the tab it should list a text field and file chooser for where the minecraft worlds are stored.  should use the same location as the backups menu.
+* in preferences dialog add a Button next to the Recent Worlds Limit on the right named "Clear" which deletes all of them.
+
 
 Ctrl+A
 Alt+A
@@ -104,3 +106,5 @@ Breaking and significant changes are **bold**.  These are major departures from 
 * Add menu and hotkey for 'Save As'
 * support save as different format
 * ctrl+Q and Esc cancel open world
+* move MRU to main menu
+* add MRU to file menu

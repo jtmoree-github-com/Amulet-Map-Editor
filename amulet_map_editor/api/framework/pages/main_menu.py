@@ -27,8 +27,11 @@ class AmuletMainMenu(wx.Panel, BasePageUI):
         top_sizer.Add(top_centre_sizer, 0, wx.EXPAND)
         top_centre_sizer.AddStretchSpacer(1)
 
+        content_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        top_centre_sizer.Add(content_sizer, 0, wx.EXPAND)
+
         menu_sizer = wx.BoxSizer(wx.VERTICAL)
-        top_centre_sizer.Add(menu_sizer)
+        content_sizer.Add(menu_sizer, 0, wx.EXPAND)
 
         name_sizer = wx.BoxSizer()
         menu_sizer.Add(name_sizer, 0, wx.CENTER)
@@ -70,7 +73,14 @@ class AmuletMainMenu(wx.Panel, BasePageUI):
         self._discord_button.Bind(wx.EVT_BUTTON, self._discord)
         menu_sizer.Add(self._discord_button, 0, wx.ALL | wx.CENTER, 5)
 
+        # Import here to avoid circular import during module initialisation.
+        from amulet_map_editor.api.wx.ui.select_world import RecentWorldUI
+
+        self._recent_worlds = RecentWorldUI(self, self._open_recent_world)
+        content_sizer.Add(self._recent_worlds, 0, wx.EXPAND | wx.LEFT, 20)
+
         top_centre_sizer.AddStretchSpacer(1)
+
         top_sizer.AddStretchSpacer(1)
 
         side_sizer = wx.BoxSizer(wx.VERTICAL)
@@ -166,7 +176,12 @@ class AmuletMainMenu(wx.Panel, BasePageUI):
         webbrowser.open("https://www.pathway.studio/")
 
     def enable(self):
+        self._recent_worlds.rebuild()
         self.GetTopLevelParent().create_menu()
+
+    def _open_recent_world(self, path: str):
+        self._recent_worlds.rebuild(path)
+        app.open_level(path)
 
     def _select_language(self, evt):
         dialog = LangSelectDialog(self)

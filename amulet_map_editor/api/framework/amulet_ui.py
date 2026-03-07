@@ -6,6 +6,7 @@ import traceback
 import logging
 import sys
 import platform
+import os
 
 from amulet.api.errors import LoaderNoneMatched
 from amulet_map_editor.api.wx.ui.select_world import open_level_from_dialog, WorldSelectPageUI
@@ -209,6 +210,25 @@ class AmuletUI(wx.Frame):
         """Close a given level. You should use the method in the app."""
         self._level_notebook.close_level(path)
 
+    @staticmethod
+    def _mru_display_name(world_path: str) -> str:
+        """Get a display name for MRU entries.
+
+        Prefer Bedrock's levelname.txt when available, then fall back to
+        folder/file name.
+        """
+        level_name_file = os.path.join(world_path, "levelname.txt")
+        if os.path.isfile(level_name_file):
+            try:
+                with open(level_name_file, "r", encoding="utf-8") as f:
+                    name = f.read().strip()
+                if name:
+                    return name
+            except Exception:
+                pass
+
+        return os.path.basename(world_path.rstrip("\\/")) or world_path
+
     def create_menu(self):
         """
         Create the UI menu.
@@ -222,6 +242,38 @@ class AmuletUI(wx.Frame):
             f"&{lang.get('menu_bar.file.open_world')}\tCtrl+O",
             lambda evt: self.open_world_select_tab(),
         )
+
+        # Only show Preferences on the main menu tab.
+        if self._level_notebook.GetCurrentPage() is self._level_notebook._main_menu:
+            menu_dict.setdefault(lang.get("menu_bar.file.menu_name"), {}).setdefault(
+                "system", {}
+            ).setdefault(
+                "&Preferences\tCtrl+P",
+                lambda evt: self._edit_preferences(),
+            )
+
+        # Add MRU worlds to the File menu.
+        meta_config = config.get("amulet_meta", {})
+        recent_worlds = meta_config.get("recent_worlds", [])
+        if isinstance(recent_worlds, list):
+            recent_menu = menu_dict.setdefault(
+                lang.get("menu_bar.file.menu_name"), {}
+            ).setdefault("recent", {})
+
+            if recent_worlds:
+                for index, world_path in enumerate(recent_worlds[:10], start=1):
+                    if not isinstance(world_path, str):
+                        continue
+                    label_name = self._mru_display_name(world_path)
+                    menu_label = f"&{index} {label_name}"
+                    recent_menu.setdefault(
+                        menu_label,
+                        lambda evt, path=world_path: self.open_level(path),
+                    )
+            else:
+                # Placeholder when there are no recent worlds yet.
+                recent_menu.setdefault("(No recent worlds)", lambda evt: None)
+
         # menu_dict.setdefault(lang.get('menu_bar.file.menu_name'), {}).setdefault('system', {}).setdefault('Create World', lambda: self.world.save())
         menu_dict = self._level_notebook.extend_menu(menu_dict)
         menu_bar = wx.MenuBar()

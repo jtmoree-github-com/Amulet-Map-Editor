@@ -1,5 +1,6 @@
 import os
 import glob
+import math
 from sys import platform
 from typing import List, Dict, Tuple, Callable, TYPE_CHECKING
 import traceback
@@ -33,6 +34,21 @@ def get_recent_worlds_limit() -> int:
     if not isinstance(limit, int):
         limit = DEFAULT_RECENT_WORLDS_LIMIT
     return max(1, min(100, limit))
+
+
+def update_recent_worlds(path: str) -> None:
+    """Update and persist MRU ordering when a world is opened."""
+    meta: dict = CONFIG.get("amulet_meta", {})
+    recent_worlds: list = meta.setdefault("recent_worlds", [])
+    recent_worlds_limit = get_recent_worlds_limit()
+
+    while path in recent_worlds:
+        recent_worlds.remove(path)
+    recent_worlds.insert(0, path)
+    while len(recent_worlds) > recent_worlds_limit:
+        recent_worlds.pop(recent_worlds_limit)
+
+    CONFIG.put("amulet_meta", meta)
 
 
 # Windows 	%APPDATA%\.minecraft
@@ -386,11 +402,61 @@ class WorldList(wx.Panel):
         # Set new selection
         self._selected_index = index
         self.worlds[self._selected_index].set_selected(True)
+        self._scroll_selected_into_view()
+
+    def _scroll_selected_into_view(self):
+        """Ensure the selected item is visible within an ancestor scrolled window."""
+        if not self.worlds or not (0 <= self._selected_index < len(self.worlds)):
+            return
+
+        scrolled_parent = self.GetParent()
+        while scrolled_parent is not None and not isinstance(
+            scrolled_parent, wx.ScrolledWindow
+        ):
+            scrolled_parent = scrolled_parent.GetParent()
+
+        if not isinstance(scrolled_parent, wx.ScrolledWindow):
+            return
+
+        selected_world = self.worlds[self._selected_index]
+
+        # Prefer native helper where available.
+        if hasattr(scrolled_parent, "ScrollChildIntoView"):
+            try:
+                scrolled_parent.ScrollChildIntoView(selected_world)
+                # Some wx builds only partially scroll; keep a robust fallback below.
+            except Exception:
+                pass
+
+        y_pixels_per_unit = scrolled_parent.GetScrollPixelsPerUnit()[1]
+        if y_pixels_per_unit <= 0:
+            return
+
+        item_rect = selected_world.GetScreenRect()
+        view_rect = scrolled_parent.GetScreenRect()
+
+        scroll_delta_pixels = 0
+        if item_rect.GetTop() < view_rect.GetTop():
+            scroll_delta_pixels = item_rect.GetTop() - view_rect.GetTop()
+        elif item_rect.GetBottom() > view_rect.GetBottom():
+            scroll_delta_pixels = item_rect.GetBottom() - view_rect.GetBottom()
+        else:
+            return
+
+        current_x_units, current_y_units = scrolled_parent.GetViewStart()
+        if scroll_delta_pixels < 0:
+            delta_units = math.floor(scroll_delta_pixels / y_pixels_per_unit)
+        else:
+            delta_units = math.ceil(scroll_delta_pixels / y_pixels_per_unit)
+
+        target_y_units = max(0, current_y_units + int(delta_units))
+        scrolled_parent.Scroll(current_x_units, target_y_units)
 
     def _on_set_focus(self, evt: wx.FocusEvent):
         """When the list gains focus, show the selected item."""
         if self.worlds and 0 <= self._selected_index < len(self.worlds):
             self.worlds[self._selected_index].set_selected(True)
+            self._scroll_selected_into_view()
         evt.Skip()
 
     def _on_kill_focus(self, evt: wx.FocusEvent):
@@ -693,10 +759,13 @@ class WorldSelectUI(wx.Panel):
         self.open_world_callback(extract_dir)
 
 
-class RecentWorldUI(wx.Panel):
+class RecentWorldUI(wx.ScrolledWindow):
     def __init__(self, parent, open_world_callback):
-        super().__init__(parent)
+        super().__init__(parent, style=wx.VSCROLL | wx.TAB_TRAVERSAL)
         self._open_world_callback = open_world_callback
+        # Use a practical wheel step while keyboard selection visibility is
+        # handled by WorldList._scroll_selected_into_view.
+        self.SetScrollRate(0, 20)
 
         self._sizer = wx.BoxSizer(wx.VERTICAL)
         self.SetSizer(self._sizer)
@@ -723,13 +792,10 @@ class RecentWorldUI(wx.Panel):
     def rebuild(self, new_world: str = None):
         meta: dict = CONFIG.get("amulet_meta", {})
         recent_worlds: list = meta.setdefault("recent_worlds", [])
-        recent_worlds_limit = get_recent_worlds_limit()
         if new_world is not None:
-            while new_world in recent_worlds:
-                recent_worlds.remove(new_world)
-            recent_worlds.insert(0, new_world)
-            while len(recent_worlds) > recent_worlds_limit:
-                recent_worlds.pop(recent_worlds_limit)
+            update_recent_worlds(new_world)
+            meta = CONFIG.get("amulet_meta", {})
+            recent_worlds = meta.setdefault("recent_worlds", [])
         if self._world_list is not None:
             self._world_list.Destroy()
         self._world_list = WorldList(
@@ -737,7 +803,7 @@ class RecentWorldUI(wx.Panel):
         )
         self._sizer.Add(self._world_list, 1, wx.EXPAND, 5)
         self.Layout()
-        CONFIG.put("amulet_meta", meta)
+        self.FitInside()
 
 
 class WorldSelectAndRecentUI(wx.Panel):
@@ -756,21 +822,11 @@ class WorldSelectAndRecentUI(wx.Panel):
         sizer.Add(warning_text, 0, wx.ALIGN_CENTER_HORIZONTAL | wx.TOP, 5)
         # bar
 
-        bottom_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        sizer.Add(bottom_sizer, 1, wx.EXPAND)
-
-        left_sizer = wx.BoxSizer(wx.VERTICAL)
-        bottom_sizer.Add(left_sizer, 1, wx.EXPAND)
-        self._recent_worlds = RecentWorldUI(self, self._update_recent)
-        left_sizer.Add(self._recent_worlds, 1, wx.EXPAND, 5)
-
-        right_sizer = wx.BoxSizer(wx.VERTICAL)
-        bottom_sizer.Add(right_sizer, 1, wx.EXPAND)
         select_world = WorldSelectUI(self, self._update_recent)
-        right_sizer.Add(select_world, 1, wx.ALL | wx.EXPAND, 5)
+        sizer.Add(select_world, 1, wx.ALL | wx.EXPAND, 5)
 
     def _update_recent(self, path):
-        self._recent_worlds.rebuild(path)
+        update_recent_worlds(path)
         self._open_world_callback(path)
 
 
@@ -824,18 +880,8 @@ class WorldSelectPageUI(wx.Panel, BasePageUI):
         warning_text.SetFont(wx.Font(20, wx.DEFAULT, wx.NORMAL, wx.NORMAL))
         sizer.Add(warning_text, 0, wx.ALIGN_CENTER_HORIZONTAL | wx.TOP, 5)
 
-        bottom_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        sizer.Add(bottom_sizer, 1, wx.EXPAND)
-
-        left_sizer = wx.BoxSizer(wx.VERTICAL)
-        bottom_sizer.Add(left_sizer, 1, wx.EXPAND)
-        self._recent_worlds = RecentWorldUI(self, self._on_world_selected)
-        left_sizer.Add(self._recent_worlds, 1, wx.EXPAND, 5)
-
-        right_sizer = wx.BoxSizer(wx.VERTICAL)
-        bottom_sizer.Add(right_sizer, 1, wx.EXPAND)
         select_world = WorldSelectUI(self, self._on_world_selected)
-        right_sizer.Add(select_world, 1, wx.ALL | wx.EXPAND, 5)
+        sizer.Add(select_world, 1, wx.ALL | wx.EXPAND, 5)
 
     def _close_open_world_tab(self):
         """Close the open-world selector tab and return to the previous tab."""
@@ -862,7 +908,7 @@ class WorldSelectPageUI(wx.Panel, BasePageUI):
 
     def _on_world_selected(self, path):
         """Called when a world is selected. Updates recent worlds and opens the world."""
-        self._recent_worlds.rebuild(path)
+        update_recent_worlds(path)
         # Close this tab
         self._close_open_world_tab()
         # Open the world
