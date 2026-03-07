@@ -150,17 +150,22 @@ class AmuletUI(wx.Frame):
         if isinstance(current_tab, WorldPageUI):
             page_count = current_tab.GetPageCount()
             if page_count > 1:
-                selection = current_tab.GetSelection()
-                next_page = (selection + direction) % page_count
-                current_tab.SetSelection(next_page)
+                current_tab.AdvanceSelection(direction > 0)
+                # Force repaint of the tab area
+                tab_area = current_tab.GetTabArea()
+                if tab_area is not None:
+                    tab_area.Refresh()
+                    tab_area.Update()
     
     def _navigate_notebooks(self, direction):
         """Navigate between worlds and main menu (1 for next, -1 for prev)."""
         page_count = self._level_notebook.GetPageCount()
         if page_count > 1:
-            selection = self._level_notebook.GetSelection()
-            next_page = (selection + direction) % page_count
-            self._level_notebook.SetSelection(next_page)
+            self._level_notebook.AdvanceSelection(direction > 0)
+            # Force repaint of the tab area
+            if hasattr(self._level_notebook, '_pages'):
+                self._level_notebook._pages.Refresh()
+                self._level_notebook._pages.Update()
     
     def _on_accel_ctrl_q(self, evt):
         """Handle Ctrl+Q - close current world or quit if on main menu."""
@@ -411,7 +416,11 @@ class AmuletLevelNotebook(flatnotebook.FlatNotebook):
                 world = WorldPageUI(self, path)
             except LoaderNoneMatched as e:
                 log.error(f"Could not find a loader for this world.\n{e}")
-                wx.MessageBox(f"{lang.get('select_world.no_loader_found')}\n{e}")
+                SelectableMessageBox(
+                    f"{lang.get('select_world.no_loader_found')}\n{e}",
+                    "Error",
+                    wx.OK | wx.ICON_ERROR
+                )
             except Exception as e:
                 error_text = str(e)
                 locked_world_error = (
@@ -420,12 +429,12 @@ class AmuletLevelNotebook(flatnotebook.FlatNotebook):
                 ) and "being used by another process" in error_text
 
                 if locked_world_error:
-                    wx.MessageBox(
+                    SelectableMessageBox(
                         "This Bedrock world is currently in use by another process.\n\n"
                         "Close Minecraft Bedrock (and any sync/backup/indexing tools using that folder), "
                         "then try opening the world again.",
                         "World Database Locked",
-                        style=wx.OK | wx.ICON_WARNING,
+                        wx.OK | wx.ICON_WARNING,
                     )
                     return
 
@@ -667,7 +676,11 @@ class AmuletLevelNotebook(flatnotebook.FlatNotebook):
 
         # Only block close if actual world pages are still open.
         if self._open_worlds:
-            wx.MessageBox(lang.get("app.world_still_used"))
+            SelectableMessageBox(
+                lang.get("app.world_still_used"),
+                "Warning",
+                wx.OK | wx.ICON_WARNING
+            )
         else:
             evt.Skip()
 

@@ -9,6 +9,7 @@ from amulet.api.errors import FormatError
 
 from amulet_map_editor.api import config
 from amulet_map_editor.api.framework.pages.base_page import BasePageUI
+from amulet_map_editor.api.wx.ui.selectable_message_dialog import SelectableMessageBox
 
 
 DELETE_CONFIG_GROUP = "delete"
@@ -148,16 +149,21 @@ class DeletePageUI(wx.Panel, BasePageUI):
             self._scroll_panel.FitInside()
             return
 
-        # Find all worlds in the folder
+        # Find all worlds in the folder (both directories and .mcworld files)
         world_paths = []
         for world_path in glob.glob(os.path.join(glob.escape(worlds_folder), "*")):
-            if os.path.isdir(world_path):
+            # Check if it's a directory (normal world) or .mcworld file (Bedrock archive)
+            is_mcworld = world_path.lower().endswith('.mcworld')
+            if os.path.isdir(world_path) or is_mcworld:
                 try:
                     world_format = load_format(world_path)
                     world_paths.append((world_format.level_name, world_format.game_version_string, world_path))
                 except (FormatError, Exception):
-                    # Not a valid world or error reading it
-                    pass
+                    # If we can't load it but it's a .mcworld file, still show it
+                    if is_mcworld and os.path.isfile(world_path):
+                        filename = os.path.basename(world_path)
+                        world_paths.append((filename, "Unknown", world_path))
+                    # Otherwise skip it (not a valid world)
 
         if not world_paths:
             self._worlds_sizer.Add(
@@ -179,16 +185,15 @@ class DeletePageUI(wx.Panel, BasePageUI):
             world_sizer = wx.BoxSizer(wx.HORIZONTAL)
             world_panel.SetSizer(world_sizer)
 
+            delete_button = wx.Button(world_panel, label="Delete")
+            delete_button.Bind(wx.EVT_BUTTON, lambda evt, path=world_path, name=world_name: self._delete_world(path, name))
+            world_sizer.Add(delete_button, 0, wx.ALL, 5)
+
             world_label = wx.StaticText(
                 world_panel,
                 label=f"{world_name} ({game_version})"
             )
-            world_label.SetMinSize((400, -1))
-            world_sizer.Add(world_label, 1, wx.ALIGN_CENTER_VERTICAL | wx.ALL, 5)
-
-            delete_button = wx.Button(world_panel, label="Delete")
-            delete_button.Bind(wx.EVT_BUTTON, lambda evt, path=world_path, name=world_name: self._delete_world(path, name))
-            world_sizer.Add(delete_button, 0, wx.ALL, 5)
+            world_sizer.Add(world_label, 1, wx.ALIGN_CENTER_VERTICAL | wx.LEFT, 5)
 
             self._worlds_sizer.Add(world_panel, 0, wx.EXPAND | wx.ALL, 2)
 
@@ -215,8 +220,12 @@ class DeletePageUI(wx.Panel, BasePageUI):
 
         # Delete the world
         try:
-            shutil.rmtree(world_path)
-            wx.MessageBox(
+            # Check if it's a file or directory
+            if os.path.isfile(world_path):
+                os.remove(world_path)
+            else:
+                shutil.rmtree(world_path)
+            SelectableMessageBox(
                 f"World deleted successfully:\n{world_name}",
                 "Delete Complete",
                 wx.OK | wx.ICON_INFORMATION
@@ -224,7 +233,7 @@ class DeletePageUI(wx.Panel, BasePageUI):
             # Refresh the list
             self._refresh_worlds(None)
         except Exception as e:
-            wx.MessageBox(
+            SelectableMessageBox(
                 f"Failed to delete world:\n{e}",
                 "Delete Error",
                 wx.OK | wx.ICON_ERROR

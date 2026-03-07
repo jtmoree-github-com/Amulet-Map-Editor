@@ -6,18 +6,13 @@
 * Clipboard (white)
 
 # todo
-
-* in preferences dialog add a Button next to the Recent Worlds Limit on the right named "Clear" which deletes all of them.
-
-
-Ctrl+A
-Alt+A
-
 * hotkey to start scaling operation?
 
 ## misc
 * can we have a blender 3d keymap preset?
 -- not really.   the workflows are too different.
+Ctrl+A yes
+Alt+A  maybe...
 * ctrl+shift+alt+D to toggle dimension?
 * cursor /highlight speed not tied to camera speed.  maybe have a different speed cotnrol
 * can we make the mode controls dockable so that they can open in a different window?
@@ -108,3 +103,4 @@ Breaking and significant changes are **bold**.  These are major departures from 
 * add MRU to file menu
 * add Backups feature
 * add delete feature
+* "Clear" deletes all of mru.

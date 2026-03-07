@@ -7,8 +7,10 @@ import wx.lib.inspection
 
 from amulet_map_editor.api import image, lang
 from amulet_map_editor.api.framework import app
+from amulet_map_editor.api.image import EDIT_ICON
 from .base_page import BasePageUI
 from ._legal import LicenceDialog
+from .backups_page import perform_backup
 
 
 class AmuletMainMenu(wx.Panel, BasePageUI):
@@ -58,10 +60,21 @@ class AmuletMainMenu(wx.Panel, BasePageUI):
         )
         menu_sizer.Add(self._open_world_button, 0, wx.ALL | wx.CENTER, 5)
 
-        self._backups_button = wx.Button(self, size=(400, 70), label="Backups")
-        self._backups_button.SetFont(button_font)
-        self._backups_button.Bind(wx.EVT_BUTTON, lambda _: app.open_backups_tab())
-        menu_sizer.Add(self._backups_button, 0, wx.ALL | wx.CENTER, 5)
+        # Backup Now button with settings pencil icon
+        backup_row_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        self._backup_now_button = wx.Button(self, size=(340, 70), label="Backup Now")
+        self._backup_now_button.SetFont(button_font)
+        self._backup_now_button.Bind(wx.EVT_BUTTON, lambda _: perform_backup(self))
+        backup_row_sizer.Add(self._backup_now_button, 0, wx.RIGHT, 5)
+        
+        self._backup_settings_button = wx.BitmapButton(
+            self, bitmap=EDIT_ICON.bitmap(48, 48), size=(50, 70)
+        )
+        self._backup_settings_button.SetToolTip("Backup Settings")
+        self._backup_settings_button.Bind(wx.EVT_BUTTON, lambda _: app.open_backups_tab())
+        backup_row_sizer.Add(self._backup_settings_button, 0)
+        
+        menu_sizer.Add(backup_row_sizer, 0, wx.ALL | wx.CENTER, 5)
 
         self._delete_button = wx.Button(self, size=(400, 70), label="Delete Worlds")
         self._delete_button.SetFont(button_font)
@@ -155,7 +168,8 @@ class AmuletMainMenu(wx.Panel, BasePageUI):
     def _load_strings(self):
         self._amulet_name.SetLabel(lang.get("meta.amulet"))
         self._open_world_button.SetLabel(lang.get("main_menu.open_world"))
-        self._backups_button.SetLabel("Backups")
+        self._backup_now_button.SetLabel("Backup Now")
+        self._backup_settings_button.SetToolTip("Backup Settings")
         self._user_manual_button.SetLabel(lang.get("main_menu.user_manual"))
         self._user_manual_button.SetToolTip(lang.get("app.browser_open_tooltip"))
         self._bug_tracker_button.SetLabel(lang.get("main_menu.bug_tracker"))

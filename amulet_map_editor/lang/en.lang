@@ -137,6 +137,7 @@ select_world.extracting_world_not_empty=The directory must be empty.
 select_world.extracting_world_failed=Failed extracting world.
 select_world.extracting_world_finished=Finished extracting world. Amulet will edit the extracted world.
 select_world.recent_worlds=Recently Opened Worlds
+select_world.clear_all=Clear All
 select_world.no_loader_found=Could not find a loader for this world.
 select_world.loading_world_failed=Error loading world.
 

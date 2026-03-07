@@ -21,6 +21,7 @@ from amulet_map_editor.api.framework import app
 from amulet_map_editor.api.framework.pages import BasePageUI
 from amulet_map_editor.api.framework.programs import BaseProgram, AboutProgram
 from amulet_map_editor.api.wx.ui.traceback_dialog import TracebackDialog
+from amulet_map_editor.api.wx.ui.selectable_message_dialog import SelectableMessageBox
 
 _extensions: List[Tuple[str, Type[BaseProgram]]] = []
 _fixed_extensions: List[Tuple[str, Type[BaseProgram]]] = [
@@ -160,7 +161,7 @@ class WorldPageUI(wx.Notebook, BasePageUI):
         dialog.Destroy()
 
         if not new_world_name:
-            wx.MessageBox("Name cannot be empty.", "Error", wx.OK | wx.ICON_ERROR)
+            SelectableMessageBox("Name cannot be empty.", "Error", wx.OK | wx.ICON_ERROR)
             return
 
         # Step 2: Pick the destination location
@@ -195,7 +196,7 @@ class WorldPageUI(wx.Notebook, BasePageUI):
                 new_path = os.path.join(loc_dialog.GetPath(), folder_name)
 
         if os.path.exists(new_path):
-            if wx.MessageBox(
+            if SelectableMessageBox(
                 f"'{new_path}' already exists. Overwrite?",
                 "Confirm Overwrite",
                 wx.YES_NO | wx.ICON_QUESTION,
@@ -286,7 +287,7 @@ class WorldPageUI(wx.Notebook, BasePageUI):
         progress_dialog.Destroy()
 
         if error_message[0]:
-            wx.MessageBox(
+            SelectableMessageBox(
                 f"Failed to save world:\n{error_message[0]}",
                 "Save As Error",
                 wx.OK | wx.ICON_ERROR,

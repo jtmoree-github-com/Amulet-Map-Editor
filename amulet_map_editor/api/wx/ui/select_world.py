@@ -786,6 +786,8 @@ class RecentWorldUI(wx.ScrolledWindow):
         self._sizer = wx.BoxSizer(wx.VERTICAL)
         self.SetSizer(self._sizer)
 
+        # Title with Clear All button
+        title_sizer = wx.BoxSizer(wx.HORIZONTAL)
         text = wx.StaticText(
             self,
             wx.ID_ANY,
@@ -795,14 +797,24 @@ class RecentWorldUI(wx.ScrolledWindow):
             0,
         )
         text.SetFont(wx.Font(12, wx.DEFAULT, wx.NORMAL, wx.NORMAL))
-        self._sizer.Add(
-            text,
-            0,
-            wx.ALL | wx.ALIGN_CENTER,
-            5,
-        )
+        title_sizer.Add(text, 0, wx.ALL, 5)
+        
+        title_sizer.AddStretchSpacer(1)
+        
+        clear_button = wx.Button(self, wx.ID_ANY, lang.get("select_world.clear_all"), size=(80, -1))
+        clear_button.Bind(wx.EVT_BUTTON, self._on_clear_all)
+        title_sizer.Add(clear_button, 0, wx.ALL, 5)
+        
+        self._sizer.Add(title_sizer, 0, wx.EXPAND)
 
         self._world_list = None
+        self.rebuild()
+    
+    def _on_clear_all(self, evt):
+        """Clear all recent worlds."""
+        meta: dict = CONFIG.get("amulet_meta", {})
+        meta["recent_worlds"] = []
+        CONFIG.put("amulet_meta", meta)
         self.rebuild()
 
     def rebuild(self, new_world: str = None):
