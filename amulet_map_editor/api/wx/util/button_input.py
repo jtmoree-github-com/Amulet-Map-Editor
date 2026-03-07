@@ -1,6 +1,7 @@
 import wx
 from typing import Set, Dict, Tuple
 import logging
+import sys
 
 from .window_container import WindowContainer
 from .key_config import (
@@ -17,6 +18,30 @@ log = logging.getLogger(__name__)
 
 # Define the set of modifier keys
 MODIFIER_KEYS = {Control, Shift, Alt}
+
+# Windows API helper for showing menu accelerator underlines.
+# When we consume the Alt key event (to prevent menu activation stealing
+# focus), Windows no longer toggles the underlines automatically.  We use
+# WM_CHANGEUISTATE to make them visible when Alt is pressed.
+_has_win32_ui_state = False
+if sys.platform == "win32":
+    try:
+        import ctypes
+        _user32 = ctypes.windll.user32
+        _WM_CHANGEUISTATE = 0x0127
+        _UIS_CLEAR = 2
+        _UISF_HIDEACCEL = 0x0002
+
+        def _show_accel_underlines(win: wx.Window):
+            """Make menu-bar mnemonic underlines visible."""
+            hwnd = win.GetTopLevelParent().GetHandle()
+            if hwnd:
+                wp = _UIS_CLEAR | (_UISF_HIDEACCEL << 16)
+                _user32.SendMessageW(hwnd, _WM_CHANGEUISTATE, wp, 0)
+
+        _has_win32_ui_state = True
+    except Exception:
+        pass
 
 
 _InputPressEventType = wx.NewEventType()
@@ -243,6 +268,9 @@ class ButtonInput(WindowContainer):
         key = serialise_key(evt)
         if key is None:
             return
+        if self._should_ignore_keypress(evt, key):
+            evt.Skip()
+            return
         if not self.is_key_pressed(key):
             active_keys = self._pressed_keys.copy()
             if hasattr(evt, "ControlDown") and evt.ControlDown():
@@ -253,6 +281,16 @@ class ButtonInput(WindowContainer):
                 active_keys.add(Alt)
 
             action_ids = self._find_actions(key, active_keys)
+            if isinstance(key, str) and not key.startswith("MOUSE_") and Alt in active_keys:
+                filtered_action_ids = []
+                for action_id in action_ids:
+                    action_bindings = self._registered_actions.get(action_id, ())
+                    if any(
+                        action.trigger_key == key and Alt in action.modifier_keys
+                        for action in action_bindings
+                    ):
+                        filtered_action_ids.append(action_id)
+                action_ids = tuple(filtered_action_ids)
             if isinstance(key, str) and key.startswith("MOUSE_") and Alt in active_keys:
                 filtered_action_ids = []
                 for action_id in action_ids:
@@ -270,20 +308,52 @@ class ButtonInput(WindowContainer):
 
             self._pressed_keys.add(key)
             
-            # Only skip event if no actions were found, or if Alt is pressed but not used by any action
-            # This prevents Alt+key combinations from triggering Windows menu beeps
+            # Determine whether to propagate the event to wxPython's native handling.
             skip_event = True
             if action_ids and Alt in self._pressed_keys:
-                # If any action uses Alt as a modifier, don't skip to prevent menu activation
+                # An Alt+key action fired — consume the event to prevent menu beeps
                 for action_id in action_ids:
                     if any(Alt in action.modifier_keys for action in self._registered_actions[action_id]):
                         skip_event = False
                         break
+
+            # When the Alt key itself is pressed, consume the event to prevent
+            # the native menu-activation mode from stealing focus.  This stops
+            # the race where Alt activates the menu bar and a subsequent letter
+            # key (e.g. W) is swallowed before the canvas can see it.
+            # We still show the mnemonic underlines via the Windows API.
+            if skip_event and key == Alt:
+                if any(
+                    any(Alt in action.modifier_keys for action in bindings)
+                    for bindings in self._registered_actions.values()
+                ):
+                    skip_event = False
+                    if _has_win32_ui_state:
+                        _show_accel_underlines(self.window)
             
             if skip_event:
                 evt.Skip()
         else:
             evt.Skip()
+
+    def _should_ignore_keypress(self, evt, key: KeyType) -> bool:
+        """Ignore hotkeys that should belong to focused dialogs/inputs."""
+        if not isinstance(evt, wx.KeyEvent):
+            return False
+        if not evt.ControlDown() or evt.ShiftDown() or evt.AltDown():
+            return False
+        if key != "F":
+            return False
+
+        focused = wx.Window.FindFocus()
+        if focused is None:
+            return False
+
+        top = focused.GetTopLevelParent()
+        if isinstance(top, wx.Dialog):
+            return True
+
+        return isinstance(focused, (wx.TextCtrl, wx.SearchCtrl, wx.ComboBox))
 
     def _release(self, evt):
         """Event to handle a number of different key releases"""

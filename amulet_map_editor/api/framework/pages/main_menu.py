@@ -70,16 +70,11 @@ class AmuletMainMenu(wx.Panel, BasePageUI):
         self._backup_settings_button = wx.BitmapButton(
             self, bitmap=EDIT_ICON.bitmap(48, 48), size=(50, 70)
         )
-        self._backup_settings_button.SetToolTip("Backup Settings")
-        self._backup_settings_button.Bind(wx.EVT_BUTTON, lambda _: app.open_backups_tab())
+        self._backup_settings_button.SetToolTip("Preferences")
+        self._backup_settings_button.Bind(wx.EVT_BUTTON, lambda _: app.get_app()._amulet_ui._edit_preferences())
         backup_row_sizer.Add(self._backup_settings_button, 0)
         
         menu_sizer.Add(backup_row_sizer, 0, wx.ALL | wx.CENTER, 5)
-
-        self._delete_button = wx.Button(self, size=(400, 70), label="Delete Worlds")
-        self._delete_button.SetFont(button_font)
-        self._delete_button.Bind(wx.EVT_BUTTON, lambda _: app.open_delete_tab())
-        menu_sizer.Add(self._delete_button, 0, wx.ALL | wx.CENTER, 5)
 
         self._user_manual_button = wx.Button(self, size=(400, 70))
         self._user_manual_button.SetFont(button_font)
@@ -169,7 +164,7 @@ class AmuletMainMenu(wx.Panel, BasePageUI):
         self._amulet_name.SetLabel(lang.get("meta.amulet"))
         self._open_world_button.SetLabel(lang.get("main_menu.open_world"))
         self._backup_now_button.SetLabel("Backup Now")
-        self._backup_settings_button.SetToolTip("Backup Settings")
+        self._backup_settings_button.SetToolTip("Preferences")
         self._user_manual_button.SetLabel(lang.get("main_menu.user_manual"))
         self._user_manual_button.SetToolTip(lang.get("app.browser_open_tooltip"))
         self._bug_tracker_button.SetLabel(lang.get("main_menu.bug_tracker"))
@@ -203,6 +198,8 @@ class AmuletMainMenu(wx.Panel, BasePageUI):
     def enable(self):
         self._recent_worlds.rebuild()
         self.GetTopLevelParent().create_menu()
+        # Defer until after layout/menu updates so focus is reliable.
+        wx.CallAfter(self._recent_worlds.focus_recent_list)
 
     def _open_recent_world(self, path: str):
         self._recent_worlds.rebuild(path)

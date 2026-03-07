@@ -72,6 +72,7 @@ import time
 import traceback
 
 from amulet.api.data_types import OperationReturnType, OperationYieldType, Dimension
+from amulet.api.selection import SelectionGroup
 from amulet.api.structure import structure_cache
 from amulet.api.level import BaseLevel
 
@@ -704,8 +705,17 @@ class EditCanvas(BaseEditCanvas):
         return {**keyboard_keybinds, **mouse_keybinds}
 
     def _deselect(self):
-        # TODO: Re-implement this
-        self._tool_sizer.enable_default_tool()
+        """Remove the last selection box, or switch to default tool if none left."""
+        selection_group = self.selection.selection_group
+        if selection_group:
+            self.selection.selection_group = selection_group[:-1]
+        else:
+            self._tool_sizer.enable_default_tool()
+
+    def deselect_all(self):
+        """Clear all selection boxes."""
+        if self.selection.selection_group:
+            self.selection.selection_group = SelectionGroup()
 
     def run_operation(
         self,

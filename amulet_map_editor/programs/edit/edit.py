@@ -13,6 +13,7 @@ DEFAULT_RECENT_WORLDS_LIMIT = 5
 
 from amulet_map_editor import lang
 from amulet_map_editor.api.framework.programs import BaseProgram
+from amulet_map_editor.api.framework.menu_utils import ensure_mnemonic
 from amulet_map_editor.api.datatypes import MenuData
 from amulet_map_editor.api.wx.util.key_config import KeyConfigDialog, KeyConfig
 from amulet_map_editor.api.wx.ui.traceback_dialog import TracebackDialog
@@ -284,7 +285,12 @@ class EditExtension(wx.Panel, BaseProgram):
         menu.setdefault(lang.get("menu_bar.file.menu_name"), {}).setdefault(
             "system", {}
         ).setdefault(
-            f"&{lang.get('program_3d_edit.menu_bar.file.save')}\tCtrl+S",
+            self._menu_label(
+                lang.get('program_3d_edit.menu_bar.file.save'),
+                None,
+                "Ctrl+S",
+                "s",
+            ),
             lambda evt: self._canvas.save(),
         )
         menu.setdefault(lang.get("menu_bar.file.menu_name"), {}).setdefault(
@@ -294,6 +300,7 @@ class EditExtension(wx.Panel, BaseProgram):
                 lang.get('action.act_save_as'),
                 ACT_SAVE_AS,
                 "Ctrl+Shift+S",
+                "a",
             ),
             lambda evt: self._save_as(),
         )
@@ -304,6 +311,7 @@ class EditExtension(wx.Panel, BaseProgram):
                 lang.get('action.act_save_all_close'),
                 ACT_SAVE_ALL_CLOSE,
                 "Ctrl+Shift+Q",
+                "q",
             ),
             lambda evt: self._save_all_and_close(),
         )
@@ -314,6 +322,7 @@ class EditExtension(wx.Panel, BaseProgram):
                 lang.get('action.act_quit_without_save'),
                 ACT_QUIT_WITHOUT_SAVE,
                 "Ctrl+Alt+Shift+Q",
+                "w",
             ),
             lambda evt: self._quit_without_save(),
         )
@@ -323,8 +332,8 @@ class EditExtension(wx.Panel, BaseProgram):
             lang.get("program_3d_edit.menu_bar.edit.menu_name"), {}
         ).setdefault("history", {}).update(
             {
-                f"{lang.get('program_3d_edit.menu_bar.edit.undo')}\tCtrl+z": lambda evt: self._canvas.undo(),
-                f"{lang.get('program_3d_edit.menu_bar.edit.redo')}\tCtrl+y": lambda evt: self._canvas.redo(),
+                self._menu_label(lang.get('program_3d_edit.menu_bar.edit.undo'), None, "Ctrl+Z", "u"): lambda evt: self._canvas.undo(),
+                self._menu_label(lang.get('program_3d_edit.menu_bar.edit.redo'), None, "Ctrl+Y", "r"): lambda evt: self._canvas.redo(),
             }
         )
 
@@ -332,14 +341,15 @@ class EditExtension(wx.Panel, BaseProgram):
             lang.get("program_3d_edit.menu_bar.edit.menu_name"), {}
         ).setdefault("operation", {}).update(
             {
-                f"{lang.get('program_3d_edit.menu_bar.edit.cut')}\tCtrl+x": lambda evt: self._canvas.cut(),
-                f"{lang.get('program_3d_edit.menu_bar.edit.copy')}\tCtrl+c": lambda evt: self._canvas.copy(),
+                self._menu_label(lang.get('program_3d_edit.menu_bar.edit.cut'), None, "Ctrl+X", "t"): lambda evt: self._canvas.cut(),
+                self._menu_label(lang.get('program_3d_edit.menu_bar.edit.copy'), None, "Ctrl+C", "c"): lambda evt: self._canvas.copy(),
                 self._menu_label(
                     lang.get('program_3d_edit.menu_bar.edit.paste'),
                     ACT_PASTE,
                     "Ctrl+V",
+                    "p",
                 ): lambda evt: self._canvas.paste_from_cache(),
-                f"{lang.get('program_3d_edit.menu_bar.edit.delete')}\tDelete": lambda evt: self._canvas.delete(),
+                self._menu_label(lang.get('program_3d_edit.menu_bar.edit.delete'), None, "Delete", "d"): lambda evt: self._canvas.delete(),
             }
         )
 
@@ -351,13 +361,15 @@ class EditExtension(wx.Panel, BaseProgram):
                     lang.get('program_3d_edit.menu_bar.edit.deselect'),
                     ACT_DESELECT_BOX,
                     "Ctrl+D",
+                    "e",
                 ): lambda evt: self._canvas._deselect(),
                 self._menu_label(
                     lang.get('program_3d_edit.menu_bar.edit.deselect_all'),
                     ACT_DESELECT_ALL_BOXES,
-                    "Ctrl+Shift+D",
-                ): lambda evt: self._canvas._deselect(),
-                f"{lang.get('program_3d_edit.menu_bar.edit.select_all')}\tCtrl+A": lambda evt: self._canvas.select_all(),
+                    "Ctrl+Shift+A",
+                    "l",
+                ): lambda evt: self._canvas.deselect_all(),
+                self._menu_label(lang.get('program_3d_edit.menu_bar.edit.select_all'), None, "Ctrl+A", "a"): lambda evt: self._canvas.select_all(),
             }
         )
 
@@ -369,48 +381,52 @@ class EditExtension(wx.Panel, BaseProgram):
                     lang.get('program_3d_edit.menu_bar.navigation.toggle_projection'),
                     ACT_CHANGE_PROJECTION,
                     "`",
+                    "p",
                 ): lambda evt: self._toggle_projection(),
                 self._menu_label(
                     lang.get('program_3d_edit.menu_bar.navigation.toggle_camera_cursor'),
                     ACT_TOGGLE_WASD_MODE,
                     "T",
+                    "t",
                 ): lambda evt: self._toggle_wasd_mode(),
-                f"{lang.get('program_3d_edit.menu_bar.navigation.goto')}\tCtrl+G": lambda evt: self._canvas.goto(),
+                    self._menu_label(lang.get('program_3d_edit.menu_bar.navigation.goto'), None, "Ctrl+G", "c"): lambda evt: self._canvas.goto(),
                 self._menu_label(
                     lang.get('action.act_move_camera_to_cursor'),
                     ACT_MOVE_CAMERA_TO_CURSOR,
-                    "Ctrl+Shift+G",
+                    "Ctrl+F",
+                    "m",
                 ): lambda evt: self._canvas._move_camera_to_selection_cursor(),
                 self._menu_label(
                     lang.get('action.act_teleport_cursor_to_camera'),
                     ACT_TELEPORT_CURSOR_TO_CAMERA,
-                    "Ctrl+Alt+G",
+                    "Ctrl+Shift+F",
+                    "h",
                 ): lambda evt: self._canvas._teleport_selection_cursor_to_camera(),
             }
         )
 
-        menu.setdefault(lang.get("menu_bar.options.menu_name"), {}).setdefault(
-            "options", {}
+        menu.setdefault(lang.get("menu_bar.file.menu_name"), {}).setdefault(
+            "system", {}
         ).setdefault(
-            f"&{lang.get('program_3d_edit.menu_bar.file.preferences')}\tCtrl+P",
+            self._menu_label(lang.get('program_3d_edit.menu_bar.file.preferences'), None, "Ctrl+P", "p"),
             lambda evt: self._edit_preferences(),
         )
         menu.setdefault(lang.get("menu_bar.options.menu_name"), {}).setdefault(
             "options", {}
         ).setdefault(
-            f"{lang.get('program_3d_edit.menu_bar.options.keyboard_controls')}\tCtrl+K",
+            self._menu_label(lang.get('program_3d_edit.menu_bar.options.keyboard_controls'), None, "Ctrl+K", "k"),
             lambda evt: self._edit_controls(),
         )
         menu.setdefault(lang.get("menu_bar.options.menu_name"), {}).setdefault(
             "options", {}
         ).setdefault(
-            f"{lang.get('program_3d_edit.menu_bar.options.mouse_control')}\tCtrl+M",
+            self._menu_label(lang.get('program_3d_edit.menu_bar.options.mouse_control'), None, "Ctrl+M", "m"),
             lambda evt: self._edit_mouse_control(),
         )
         menu.setdefault(lang.get("menu_bar.options.menu_name"), {}).setdefault(
             "options", {}
         ).setdefault(
-            f"{lang.get('program_3d_edit.menu_bar.options.camera')}\tCtrl+I",
+            self._menu_label(lang.get('program_3d_edit.menu_bar.options.camera'), None, "Ctrl+I", "c"),
             lambda evt: self._edit_camera_controls(),
         )
         menu.setdefault(lang.get("menu_bar.help.menu_name"), {}).setdefault(
@@ -420,12 +436,22 @@ class EditExtension(wx.Panel, BaseProgram):
                 lang.get('program_3d_edit.menu_bar.help.user_guide'),
                 ACT_HELP,
                 "F1",
+                "u",
             ),
             lambda evt: self._help_controls(),
         )
         return menu
 
-    def _menu_label(self, text: str, action_id: Optional[str], fallback_hotkey: str) -> str:
+    def _menu_label(
+        self,
+        text: str,
+        action_id: Optional[str],
+        fallback_hotkey: str,
+        mnemonic: Optional[str] = None,
+    ) -> str:
+        # Normalize any pre-existing marker from translations and apply
+        # the preferred mnemonic so entries are consistent in this menu.
+        text = ensure_mnemonic(text.replace("&", ""), mnemonic)
         hotkey = self._action_hotkey(action_id, fallback_hotkey)
         return f"{text}\t{hotkey}" if hotkey else text
 

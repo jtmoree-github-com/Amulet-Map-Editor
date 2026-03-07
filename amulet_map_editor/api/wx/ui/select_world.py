@@ -1,6 +1,10 @@
 import os
 import glob
 import math
+import shutil
+import tempfile
+import base64
+import stat
 from sys import platform
 from typing import List, Dict, Tuple, Callable, TYPE_CHECKING
 import traceback
@@ -187,6 +191,25 @@ elif platform == "linux":
     )
 
 world_images: Dict[str, Tuple[int, wx.Bitmap, int]] = {}
+
+
+def _mcworld_search_dirs() -> list[str]:
+    """Directories scanned for .mcworld files."""
+    home_dir = os.path.expanduser("~")
+    search_dirs = [
+        home_dir,
+        os.path.join(home_dir, "Downloads"),
+        os.path.join(home_dir, "Documents"),
+    ]
+
+    for _, directory in minecraft_world_paths:
+        if os.path.isdir(directory):
+            parent_dir = os.path.dirname(directory)
+            if parent_dir and os.path.isdir(parent_dir):
+                search_dirs.append(parent_dir)
+
+    # Preserve insertion order while removing duplicates.
+    return [path for path in dict.fromkeys(search_dirs) if os.path.isdir(path)]
 
 
 def get_world_image(image_path: str) -> Tuple[wx.Bitmap, int]:
@@ -532,15 +555,24 @@ class ScrollableWorldsUI(wx.Panel):
         self._sizer = wx.BoxSizer(wx.VERTICAL)
         self.SetSizer(self._sizer)
 
-        # Add readonly text field showing the paths being searched
-        self._path_text = wx.TextCtrl(
-            self,
-            value="",
-            style=wx.TE_READONLY | wx.TE_MULTILINE | wx.BORDER_SIMPLE,
+        # Add title row for the found worlds tree with right-aligned refresh button
+        found_header_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        found_worlds_label = wx.StaticText(
+            self, label=lang.get("select_world.discovered_worlds")
         )
-        self._path_text.SetMinSize((-1, 120))
-        self._path_text.SetBackgroundColour(wx.SystemSettings.GetColour(wx.SYS_COLOUR_BTNFACE))
-        self._sizer.Add(self._path_text, 0, wx.EXPAND | wx.ALL, 5)
+        found_header_sizer.Add(found_worlds_label, 0, wx.ALIGN_CENTER_VERTICAL)
+        found_header_sizer.AddStretchSpacer()
+
+        refresh_button = wx.Button(self, label="Refresh")
+        refresh_button.Bind(wx.EVT_BUTTON, self._on_refresh_click)
+        found_header_sizer.Add(refresh_button, 0, wx.ALIGN_CENTER_VERTICAL)
+
+        self._sizer.Add(
+            found_header_sizer,
+            0,
+            wx.EXPAND | wx.LEFT | wx.TOP | wx.RIGHT | wx.BOTTOM,
+            5,
+        )
 
         self._tree = wx.TreeCtrl(
             self,
@@ -549,10 +581,25 @@ class ScrollableWorldsUI(wx.Panel):
             | wx.TR_LINES_AT_ROOT
             | wx.TR_SINGLE,
         )
-        self._sizer.Add(self._tree, 1, wx.EXPAND)
+        self._sizer.Add(self._tree, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 5)
+
+        # Add title for the worlds directory list below the discovered tree.
+        title_label = wx.StaticText(self, label=lang.get("select_world.looking_for_worlds_in"))
+        self._sizer.Add(title_label, 0, wx.LEFT | wx.TOP | wx.RIGHT, 5)
+
+        # Add readonly text field showing the paths being searched.
+        self._path_text = wx.TextCtrl(
+            self,
+            value="",
+            style=wx.TE_READONLY | wx.TE_MULTILINE | wx.BORDER_SIMPLE,
+        )
+        self._path_text.SetMinSize((-1, 220))
+        self._path_text.SetBackgroundColour(wx.SystemSettings.GetColour(wx.SYS_COLOUR_BTNFACE))
+        self._sizer.Add(self._path_text, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 5)
 
         self._tree.Bind(wx.EVT_TREE_ITEM_ACTIVATED, self._on_item_activated)
         self._tree.Bind(wx.EVT_TREE_KEY_DOWN, self._on_tree_key_down)
+        self._tree.Bind(wx.EVT_RIGHT_DOWN, self._on_tree_right_click)
 
         self.reload()
 
@@ -583,20 +630,650 @@ class ScrollableWorldsUI(wx.Panel):
                 return
         evt.Skip()
 
+    def _on_refresh_click(self, evt):
+        """Handle refresh button click."""
+        self.reload()
+
+    def _update_tree_height(self):
+        """Size the discovered tree to the discovered content height."""
+        root = self._tree.GetRootItem()
+        if not root.IsOk():
+            return
+
+        def count_world_items(item: wx.TreeItemId) -> int:
+            count = 0
+            if item.IsOk():
+                item_data = self._tree.GetItemData(item)
+                if isinstance(item_data, str):
+                    count += 1
+
+                child, cookie = self._tree.GetFirstChild(item)
+                while child.IsOk():
+                    count += count_world_items(child)
+                    child, cookie = self._tree.GetNextChild(item, cookie)
+            return count
+
+        world_count = count_world_items(root)
+        row_height = max(18, self._tree.GetCharHeight() + 6)
+        # Include room for group rows and a little padding.
+        visible_rows = max(6, world_count + 4)
+        tree_height = min(700, visible_rows * row_height)
+        self._tree.SetMinSize((-1, tree_height))
+
+    def _highlight_world_by_path(self, world_path: str):
+        """Find and select a world in the tree by its path."""
+        root = self._tree.GetRootItem()
+        if not root.IsOk():
+            return
+        
+        def search_tree(item):
+            if item.IsOk():
+                item_data = self._tree.GetItemData(item)
+                if item_data == world_path:
+                    self._tree.SelectItem(item)
+                    self._tree.ScrollTo(item)
+                    return
+                
+                child, cookie = self._tree.GetFirstChild(item)
+                while child.IsOk():
+                    search_tree(child)
+                    child, cookie = self._tree.GetNextChild(item, cookie)
+        
+        child, cookie = self._tree.GetFirstChild(root)
+        while child.IsOk():
+            search_tree(child)
+            child, cookie = self._tree.GetNextChild(root, cookie)
+
     def _on_item_activated(self, evt: wx.TreeEvent):
+        """Handle double-click on tree items to open worlds."""
         path = self._tree.GetItemData(evt.GetItem())
         if isinstance(path, str):
-            self.open_world_callback(path)
+            # Check if it's an mcworld file
+            if path.lower().endswith('.mcworld'):
+                self._open_mcworld_file(path)
+            else:
+                self.open_world_callback(path)
+
+    def _on_tree_right_click(self, evt: wx.MouseEvent):
+        """Handle right-click on tree items to show context menu."""
+        pt = evt.GetPosition()
+        item, flags = self._tree.HitTest(pt)
+        if not item.IsOk():
+            return
+        
+        # Select the item that was right-clicked
+        self._tree.SelectItem(item)
+        
+        # Get the world path from the item
+        path = self._tree.GetItemData(item)
+        if not isinstance(path, str):
+            return
+        
+        # Check if it's an mcworld file
+        is_mcworld = path.lower().endswith('.mcworld')
+        
+        # Create and show context menu
+        menu = wx.Menu()
+        open_id = wx.NewIdRef()
+        save_as_id = wx.NewIdRef()
+        delete_id = wx.NewIdRef()
+        
+        menu.Append(open_id, "Open")
+        menu.Append(save_as_id, "Save As")
+        menu.AppendSeparator()
+        menu.Append(delete_id, "Delete")
+        
+        if is_mcworld:
+            menu.Bind(wx.EVT_MENU, lambda e: self._open_mcworld_file(path), id=open_id)
+            menu.Bind(wx.EVT_MENU, lambda e: self._save_mcworld_as(path), id=save_as_id)
+            menu.Bind(wx.EVT_MENU, lambda e: self._delete_world(path), id=delete_id)
+        else:
+            menu.Bind(wx.EVT_MENU, lambda e: self.open_world_callback(path), id=open_id)
+            menu.Bind(wx.EVT_MENU, lambda e: self._save_world_as(path), id=save_as_id)
+            menu.Bind(wx.EVT_MENU, lambda e: self._delete_world(path), id=delete_id)
+        
+        self._tree.PopupMenu(menu, pt)
+        menu.Destroy()
+
+    def _save_world_as(self, world_path: str):
+        """Handle Save As action for a world."""
+        try:
+            # Load the world format to get metadata
+            world_format = load_format(world_path)
+            original_level_name = world_format.level_name
+            is_bedrock = world_format.platform == "bedrock"
+            
+            # Step 1: Show dialog with level name + format choice
+            dialog = wx.Dialog(None, title="Save World As", style=wx.DEFAULT_DIALOG_STYLE)
+            sizer = wx.BoxSizer(wx.VERTICAL)
+            
+            sizer.Add(
+                wx.StaticText(dialog, label="Level name:"),
+                0, wx.LEFT | wx.RIGHT | wx.TOP, 10,
+            )
+            name_ctrl = wx.TextCtrl(dialog, value=original_level_name)
+            sizer.Add(name_ctrl, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP, 10)
+            
+            sizer.Add(
+                wx.StaticText(dialog, label="Save format:"),
+                0, wx.LEFT | wx.RIGHT | wx.TOP, 10,
+            )
+            rb_folder = wx.RadioButton(
+                dialog, label="World directory", style=wx.RB_GROUP,
+            )
+            rb_mcworld = wx.RadioButton(dialog, label=".mcworld file")
+            sizer.Add(rb_folder, 0, wx.LEFT | wx.RIGHT | wx.TOP, 10)
+            sizer.Add(rb_mcworld, 0, wx.LEFT | wx.RIGHT, 10)
+            
+            # Default to directory format
+            rb_folder.SetValue(True)
+            
+            btn_sizer = dialog.CreateStdDialogButtonSizer(wx.OK | wx.CANCEL)
+            sizer.Add(btn_sizer, 0, wx.EXPAND | wx.ALL, 10)
+            dialog.SetSizer(sizer)
+            sizer.Fit(dialog)
+            
+            name_ctrl.SetFocus()
+            name_ctrl.SelectAll()
+            
+            if dialog.ShowModal() != wx.ID_OK:
+                dialog.Destroy()
+                return
+            
+            new_level_name = name_ctrl.GetValue().strip()
+            save_as_mcworld = rb_mcworld.GetValue()
+            dialog.Destroy()
+            
+            if not new_level_name:
+                wx.LogError("Level name cannot be empty")
+                return
+            
+            # Step 2: Determine destination
+            if save_as_mcworld:
+                # Ask for file save location
+                file_name = new_level_name
+                if not file_name.lower().endswith('.mcworld'):
+                    file_name += '.mcworld'
+                
+                file_dialog = wx.FileDialog(
+                    None,
+                    f"Save world as {file_name}",
+                    "",
+                    file_name,
+                    wildcard="Bedrock world archive (*.mcworld)|*.mcworld",
+                    style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT,
+                )
+                try:
+                    if file_dialog.ShowModal() == wx.ID_CANCEL:
+                        return
+                    save_path = file_dialog.GetPath()
+                finally:
+                    file_dialog.Destroy()
+            else:
+                # Save to standard Minecraft world directory
+                if is_bedrock:
+                    # For Bedrock, generate a random 12-character folder name
+                    folder_name = base64.b64encode(os.urandom(8)).decode("ascii")
+                    # Use first Bedrock worlds directory found
+                    default_dir = None
+                    for group_name, directory in minecraft_world_paths:
+                        if "minecraftworlds" in directory.lower() and os.path.isdir(directory):
+                            default_dir = directory
+                            break
+                else:
+                    # For Java, use the level name as folder
+                    folder_name = new_level_name
+                    # Use Java saves directory
+                    default_dir = None
+                    for group_name, directory in minecraft_world_paths:
+                        if "saves" in directory.lower() and os.path.isdir(directory):
+                            default_dir = directory
+                            break
+                
+                # If no standard directory found, ask user
+                if not default_dir:
+                    dir_dialog = wx.DirDialog(
+                        None,
+                        f"Select where to save world folder '{folder_name}'",
+                        "",
+                        wx.DD_DEFAULT_STYLE,
+                    )
+                    try:
+                        if dir_dialog.ShowModal() == wx.ID_CANCEL:
+                            return
+                        default_dir = dir_dialog.GetPath()
+                    finally:
+                        dir_dialog.Destroy()
+                
+                save_path = os.path.join(default_dir, folder_name)
+                
+                # Check if destination already exists
+                if os.path.exists(save_path):
+                    wx.LogError(f"A world already exists at this location")
+                    return
+            
+            # Step 3: Copy and save the world
+            busy_msg = wx.BusyInfo("Saving world...")
+            try:
+                if save_as_mcworld:
+                    # Create a temporary directory for the world structure
+                    temp_dir = tempfile.mkdtemp(prefix="amulet_saveas_")
+                    try:
+                        # Copy all files from source to temp
+                        for item in os.listdir(world_path):
+                            src_path = os.path.join(world_path, item)
+                            dst_path = os.path.join(temp_dir, item)
+                            if os.path.isdir(src_path):
+                                shutil.copytree(src_path, dst_path)
+                            else:
+                                shutil.copy2(src_path, dst_path)
+                        
+                        # Write level name into the temp copy before zipping
+                        self._write_level_name(temp_dir, new_level_name)
+                        
+                        # Create zip file from temp directory
+                        with zipfile.ZipFile(save_path, 'w', zipfile.ZIP_DEFLATED) as zf:
+                            for root, dirs, files in os.walk(temp_dir):
+                                for file in files:
+                                    file_path = os.path.join(root, file)
+                                    arcname = os.path.relpath(file_path, temp_dir)
+                                    zf.write(file_path, arcname)
+                    finally:
+                        # Clean up temp directory
+                        shutil.rmtree(temp_dir)
+                else:
+                    # Create directory and copy world
+                    os.makedirs(save_path, exist_ok=True)
+                    
+                    # Copy all files from source
+                    for item in os.listdir(world_path):
+                        src_path = os.path.join(world_path, item)
+                        dst_path = os.path.join(save_path, item)
+                        if os.path.isdir(src_path):
+                            shutil.copytree(src_path, dst_path)
+                        else:
+                            shutil.copy2(src_path, dst_path)
+                    
+                    # Write level name into the copied world
+                    self._write_level_name(save_path, new_level_name)
+            finally:
+                del busy_msg
+            
+            # Refresh the worlds list and highlight the newly saved world
+            self.reload()
+            self._highlight_world_by_path(save_path)
+        except Exception as e:
+            log.error(f"Error saving world as: {e}")
+            wx.LogError("Failed to save world")
+
+    @staticmethod
+    def _write_level_name(world_dir: str, level_name: str):
+        """Write the level name into the world's metadata files.
+        
+        Opens the world format, sets level_name, saves (writes level.dat 
+        and levelname.txt), then closes.
+        """
+        try:
+            fmt = load_format(world_dir)
+            fmt.open()
+            try:
+                fmt.level_name = level_name
+                fmt.save()
+            finally:
+                fmt.close()
+        except Exception as e:
+            log.warning(f"Could not update level name via format: {e}")
+            # Fallback: write levelname.txt directly
+            try:
+                with open(os.path.join(world_dir, "levelname.txt"), "w", encoding="utf-8") as f:
+                    f.write(level_name)
+            except Exception as e2:
+                log.debug(f"Could not write levelname.txt fallback: {e2}")
+
+    def _add_mcworld_files_to_tree(self, root: wx.TreeItemId):
+        """Scan for and add .mcworld files to the tree."""
+        mcworld_files = []
+        search_dirs = _mcworld_search_dirs()
+        
+        # Search for mcworld files at the top level of each directory
+        for search_dir in search_dirs:
+            if os.path.isdir(search_dir):
+                try:
+                    for file_path in glob.glob(os.path.join(glob.escape(search_dir), "*.mcworld")):
+                        if os.path.isfile(file_path):
+                            mcworld_files.append(file_path)
+                except Exception as e:
+                    log.debug(f"Error searching {search_dir} for mcworld files: {e}")
+        
+        # Also search recursively one level deep
+        for search_dir in search_dirs:
+            if os.path.isdir(search_dir):
+                try:
+                    for file_path in glob.glob(os.path.join(glob.escape(search_dir), "*", "*.mcworld")):
+                        if os.path.isfile(file_path):
+                            mcworld_files.append(file_path)
+                except Exception as e:
+                    log.debug(f"Error recursively searching {search_dir} for mcworld files: {e}")
+        
+        # Remove duplicates and sort
+        mcworld_files = sorted(list(set(mcworld_files)))
+        
+        if mcworld_files:
+            # Create a parent node for mcworld files
+            mcworld_node = self._tree.AppendItem(root, "MCWorld Files (.mcworld)")
+            
+            for mcworld_path in mcworld_files:
+                file_name = os.path.basename(mcworld_path)
+                mcworld_item = self._tree.AppendItem(mcworld_node, file_name)
+                self._tree.SetItemData(mcworld_item, mcworld_path)
+            
+            self._tree.Expand(mcworld_node)
+        else:
+            # Log if no mcworld files found (for debugging)
+            log.debug(f"No .mcworld files found in search directories: {search_dirs}")
+
+    def _open_mcworld_file(self, mcworld_path: str):
+        """Open a .mcworld file by extracting it to a temporary location."""
+        try:
+            # Create a temporary directory for extraction
+            temp_dir = os.path.join(os.path.expanduser("~"), ".amulet_temp_worlds")
+            os.makedirs(temp_dir, exist_ok=True)
+            
+            # Extract the mcworld file
+            file_name = os.path.basename(mcworld_path)
+            world_name = os.path.splitext(file_name)[0]
+            extract_dir = os.path.join(temp_dir, world_name)
+            
+            # Remove existing extraction if present
+            if os.path.exists(extract_dir):
+                shutil.rmtree(extract_dir)
+            
+            os.makedirs(extract_dir)
+            
+            busy_msg = wx.BusyInfo("Extracting world...")
+            try:
+                with zipfile.ZipFile(mcworld_path, 'r') as zip_ref:
+                    zip_ref.extractall(extract_dir)
+            finally:
+                del busy_msg
+            
+            # Open the extracted world
+            self.open_world_callback(extract_dir)
+        except Exception as e:
+            log.error(f"Error opening mcworld file: {e}")
+            wx.LogError("Failed to open mcworld file")
+
+    def _save_mcworld_as(self, mcworld_path: str):
+        """Save a .mcworld file with format choice (directory or .mcworld)."""
+        try:
+            # Extract the mcworld to a temp directory so we can inspect it
+            temp_dir = tempfile.mkdtemp(prefix="amulet_mcworld_saveas_")
+            try:
+                busy_extract = wx.BusyInfo("Extracting world...")
+                try:
+                    with zipfile.ZipFile(mcworld_path, 'r') as zip_ref:
+                        zip_ref.extractall(temp_dir)
+                finally:
+                    del busy_extract
+
+                # Load format from extracted world to get metadata
+                world_format = load_format(temp_dir)
+                original_level_name = world_format.level_name
+                is_bedrock = world_format.platform == "bedrock"
+
+                # Show the same format choice dialog as _save_world_as
+                dialog = wx.Dialog(None, title="Save World As", style=wx.DEFAULT_DIALOG_STYLE)
+                sizer = wx.BoxSizer(wx.VERTICAL)
+
+                sizer.Add(
+                    wx.StaticText(dialog, label="Level name:"),
+                    0, wx.LEFT | wx.RIGHT | wx.TOP, 10,
+                )
+                name_ctrl = wx.TextCtrl(dialog, value=original_level_name)
+                sizer.Add(name_ctrl, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP, 10)
+
+                sizer.Add(
+                    wx.StaticText(dialog, label="Save format:"),
+                    0, wx.LEFT | wx.RIGHT | wx.TOP, 10,
+                )
+                rb_folder = wx.RadioButton(
+                    dialog, label="World directory", style=wx.RB_GROUP,
+                )
+                rb_mcworld = wx.RadioButton(dialog, label=".mcworld file")
+                sizer.Add(rb_folder, 0, wx.LEFT | wx.RIGHT | wx.TOP, 10)
+                sizer.Add(rb_mcworld, 0, wx.LEFT | wx.RIGHT, 10)
+
+                # Default to .mcworld since the source is a .mcworld
+                rb_mcworld.SetValue(True)
+
+                btn_sizer = dialog.CreateStdDialogButtonSizer(wx.OK | wx.CANCEL)
+                sizer.Add(btn_sizer, 0, wx.EXPAND | wx.ALL, 10)
+                dialog.SetSizer(sizer)
+                sizer.Fit(dialog)
+
+                name_ctrl.SetFocus()
+                name_ctrl.SelectAll()
+
+                if dialog.ShowModal() != wx.ID_OK:
+                    dialog.Destroy()
+                    return
+
+                new_level_name = name_ctrl.GetValue().strip()
+                save_as_mcworld = rb_mcworld.GetValue()
+                dialog.Destroy()
+
+                if not new_level_name:
+                    wx.LogError("Level name cannot be empty")
+                    return
+
+                # Determine destination
+                if save_as_mcworld:
+                    file_name = new_level_name
+                    if not file_name.lower().endswith('.mcworld'):
+                        file_name += '.mcworld'
+
+                    file_dialog = wx.FileDialog(
+                        None,
+                        f"Save world as {file_name}",
+                        "",
+                        file_name,
+                        wildcard="Bedrock world archive (*.mcworld)|*.mcworld",
+                        style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT,
+                    )
+                    try:
+                        if file_dialog.ShowModal() == wx.ID_CANCEL:
+                            return
+                        save_path = file_dialog.GetPath()
+                    finally:
+                        file_dialog.Destroy()
+                else:
+                    if is_bedrock:
+                        folder_name = base64.b64encode(os.urandom(8)).decode("ascii")
+                        default_dir = None
+                        for group_name, directory in minecraft_world_paths:
+                            if "minecraftworlds" in directory.lower() and os.path.isdir(directory):
+                                default_dir = directory
+                                break
+                    else:
+                        folder_name = new_level_name
+                        default_dir = None
+                        for group_name, directory in minecraft_world_paths:
+                            if "saves" in directory.lower() and os.path.isdir(directory):
+                                default_dir = directory
+                                break
+
+                    if not default_dir:
+                        dir_dialog = wx.DirDialog(
+                            None,
+                            f"Select where to save world folder '{folder_name}'",
+                            "",
+                            wx.DD_DEFAULT_STYLE,
+                        )
+                        try:
+                            if dir_dialog.ShowModal() == wx.ID_CANCEL:
+                                return
+                            default_dir = dir_dialog.GetPath()
+                        finally:
+                            dir_dialog.Destroy()
+
+                    save_path = os.path.join(default_dir, folder_name)
+
+                    if os.path.exists(save_path):
+                        wx.LogError("A world already exists at this location")
+                        return
+
+                # Write level name into the extracted temp copy
+                self._write_level_name(temp_dir, new_level_name)
+
+                # Save
+                busy_msg = wx.BusyInfo("Saving world...")
+                try:
+                    if save_as_mcworld:
+                        with zipfile.ZipFile(save_path, 'w', zipfile.ZIP_DEFLATED) as zf:
+                            for root, dirs, files in os.walk(temp_dir):
+                                for file in files:
+                                    file_path = os.path.join(root, file)
+                                    arcname = os.path.relpath(file_path, temp_dir)
+                                    zf.write(file_path, arcname)
+                    else:
+                        os.makedirs(save_path, exist_ok=True)
+                        for item in os.listdir(temp_dir):
+                            src_path = os.path.join(temp_dir, item)
+                            dst_path = os.path.join(save_path, item)
+                            if os.path.isdir(src_path):
+                                shutil.copytree(src_path, dst_path)
+                            else:
+                                shutil.copy2(src_path, dst_path)
+                finally:
+                    del busy_msg
+
+                self.reload()
+                self._highlight_world_by_path(save_path)
+            finally:
+                # Clean up temp extraction directory
+                shutil.rmtree(temp_dir, ignore_errors=True)
+        except Exception as e:
+            log.error(f"Error saving mcworld file as: {e}")
+            wx.LogError("Failed to save mcworld file")
+
+    def _delete_world(self, world_path: str):
+        """Delete a world after confirming with the user."""
+        try:
+            def _remove_readonly(func, path, exc_info):
+                """Retry remove operations after clearing read-only bit on Windows."""
+                try:
+                    os.chmod(path, stat.S_IWRITE)
+                    func(path)
+                except Exception:
+                    raise
+
+            def _delete_error_message(exc: Exception, fallback_path: str) -> str:
+                """Build a user-friendly delete error, highlighting read-only causes."""
+                failed_path = getattr(exc, "filename", None) or fallback_path
+                exc_text = str(exc)
+
+                if isinstance(exc, PermissionError):
+                    try:
+                        if os.path.exists(failed_path):
+                            mode = os.stat(failed_path).st_mode
+                            is_read_only = (mode & stat.S_IWRITE) == 0
+                            if is_read_only or not os.access(failed_path, os.W_OK):
+                                return (
+                                    "Failed to delete world because a file or folder is read-only. "
+                                    "Remove the read-only attribute and try again."
+                                )
+                    except Exception:
+                        pass
+
+                    lowered = exc_text.lower()
+                    if "read-only" in lowered or "readonly" in lowered:
+                        return (
+                            "Failed to delete world because a file or folder is read-only. "
+                            "Remove the read-only attribute and try again."
+                        )
+
+                return f"Failed to delete world: {exc}"
+
+            # Get the world name for display
+            world_name = os.path.basename(world_path.rstrip("\\/")) or world_path
+            
+            # Show confirmation dialog
+            dlg = wx.MessageDialog(
+                None,
+                f"Are you sure you want to delete '{world_name}'?\n\nThis action cannot be undone.",
+                "Delete World",
+                wx.YES_NO | wx.NO_DEFAULT | wx.ICON_WARNING,
+                pos=wx.DefaultPosition
+            )
+            
+            # Set the button labels and make Cancel the default
+            dlg.SetYesNoLabels("Yes, I really want to delete this world", "Cancel")
+            
+            result = dlg.ShowModal()
+            dlg.Destroy()
+            
+            if result != wx.ID_YES:
+                return
+
+            if not os.path.exists(world_path):
+                wx.LogError("The selected world could not be found.")
+                self.reload()
+                return
+
+            # Deleting a currently open world on Windows commonly fails due to file locks.
+            try:
+                level_notebook = app.get_app()._amulet_ui._level_notebook
+                if os.path.isdir(world_path) and world_path in level_notebook._open_worlds:
+                    wx.LogError("Close this world in the editor before deleting it.")
+                    return
+            except Exception:
+                # If app internals change, skip this optional guard and continue.
+                pass
+            
+            # Delete the world
+            if world_path.lower().endswith(".mcworld") or os.path.isfile(world_path):
+                # It's an .mcworld file or a direct file path.
+                try:
+                    os.remove(world_path)
+                    log.info(f"Deleted mcworld file: {world_path}")
+                except Exception as e:
+                    log.error(f"Error deleting mcworld file: {e}")
+                    wx.LogError(_delete_error_message(e, world_path))
+                    return
+            else:
+                # It's a directory
+                try:
+                    shutil.rmtree(world_path, onerror=_remove_readonly)
+                    log.info(f"Deleted world directory: {world_path}")
+                except Exception as e:
+                    log.error(f"Error deleting world directory: {e}")
+                    wx.LogError(_delete_error_message(e, world_path))
+                    return
+            
+            # Refresh the worlds list
+            self.reload()
+        except Exception as e:
+            log.error(f"Error in _delete_world: {e}")
+            wx.LogError("Failed to delete world")
 
     def reload(self):
         self._tree.DeleteAllItems()
         root = self._tree.AddRoot("worlds")
 
-        # Update path text field with existing directories
+        # Update path text field with existing directories and mcworld search locations.
         existing_paths = []
+        shown_dirs = set()
         for group_name, directory in minecraft_world_paths:
             if os.path.isdir(directory):
                 existing_paths.append(f"{group_name}\n  {directory}")
+                shown_dirs.add(directory)
+
+        mcworld_dirs = [d for d in _mcworld_search_dirs() if d not in shown_dirs]
+        if mcworld_dirs:
+            existing_paths.append(
+                f"{lang.get('select_world.mcworld_search_locations')}\n  "
+                + "\n  ".join(mcworld_dirs)
+            )
         
         if existing_paths:
             self._path_text.SetValue("\n\n".join(existing_paths))
@@ -653,12 +1330,18 @@ class ScrollableWorldsUI(wx.Panel):
                 )
                 self._tree.SetItemData(world_item, world_format.path)
 
+        # Add mcworld files (.mcworld archives)
+        self._add_mcworld_files_to_tree(root)
+
         for platform_node in platform_nodes.values():
             self._tree.Expand(platform_node)
         for nested_node in nested_section_nodes.values():
             self._tree.Expand(nested_node)
         for subsection_node in subsection_nodes.values():
             self._tree.Expand(subsection_node)
+
+        self._update_tree_height()
+        self.Layout()
 
 
 class WorldSelectUI(wx.Panel):
@@ -817,6 +1500,16 @@ class RecentWorldUI(wx.ScrolledWindow):
         CONFIG.put("amulet_meta", meta)
         self.rebuild()
 
+    def focus_recent_list(self) -> bool:
+        """Focus the recent-world list so keyboard navigation works immediately."""
+        if self._world_list is not None and self._world_list.AcceptsFocus():
+            self._world_list.SetFocus()
+            return True
+        if self.AcceptsFocus():
+            self.SetFocus()
+            return True
+        return False
+
     def rebuild(self, new_world: str = None):
         meta: dict = CONFIG.get("amulet_meta", {})
         recent_worlds: list = meta.setdefault("recent_worlds", [])
@@ -934,12 +1627,14 @@ class WorldSelectPageUI(wx.Panel, BasePageUI):
 
         evt.Skip()
 
+    def enable(self):
+        """Run when the tab is shown/enabled. Refresh menu to remove Edit/Camera menus."""
+        self.GetTopLevelParent().create_menu()
+
     def _on_world_selected(self, path):
         """Called when a world is selected. Updates recent worlds and opens the world."""
         update_recent_worlds(path)
-        # Close this tab
-        self._close_open_world_tab()
-        # Open the world
+        # Open the world (but keep this tab open for management)
         app.open_level(path)
 
 

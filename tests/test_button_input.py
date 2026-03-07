@@ -1,6 +1,7 @@
 import unittest
 
 from amulet_map_editor.api.wx.util.button_input import ButtonInput, Control
+from amulet_map_editor.api.wx.util.key_config import Alt
 
 
 class ButtonInputMatchingTestCase(unittest.TestCase):
@@ -42,6 +43,28 @@ class ButtonInputMatchingTestCase(unittest.TestCase):
 
         self.assertEqual({"ACT_BOX_CLICK"}, keyboard_actions)
         self.assertEqual({"ACT_BOX_CLICK"}, mouse_actions)
+
+    def test_alt_w_finds_alt_modified_action(self):
+        """Alt+W should match ACT_LOOK_UP (Alt modifier) via _find_actions."""
+        self.button_input.register_action("ACT_MOVE_UP", tuple(), "W")
+        self.button_input.register_action("ACT_LOOK_UP", (Alt,), "W")
+
+        self.button_input._pressed_keys.add(Alt)
+        actions = set(self.button_input._find_actions("W"))
+
+        # Both match via subset semantics
+        self.assertIn("ACT_LOOK_UP", actions)
+        self.assertIn("ACT_MOVE_UP", actions)
+
+    def test_w_without_alt_does_not_find_alt_action(self):
+        """Plain W should not match an Alt-modified action."""
+        self.button_input.register_action("ACT_MOVE_UP", tuple(), "W")
+        self.button_input.register_action("ACT_LOOK_UP", (Alt,), "W")
+
+        actions = set(self.button_input._find_actions("W"))
+
+        self.assertIn("ACT_MOVE_UP", actions)
+        self.assertNotIn("ACT_LOOK_UP", actions)
 
 
 if __name__ == "__main__":

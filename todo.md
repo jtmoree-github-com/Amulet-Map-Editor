@@ -6,7 +6,7 @@
 * Clipboard (white)
 
 # todo
-* hotkey to start scaling operation?
+* research export interface.  it's confusing
 
 ## misc
 * can we have a blender 3d keymap preset?
@@ -16,10 +16,9 @@ Alt+A  maybe...
 * ctrl+shift+alt+D to toggle dimension?
 * cursor /highlight speed not tied to camera speed.  maybe have a different speed cotnrol
 * can we make the mode controls dockable so that they can open in a different window?
-* research export interface.  it's confusing
+* hotkey to start scaling operation?
 
 ## bugs
-* There are no pneumonics on many menu entries.  suggest improvements
 * fkeys do not work when keyboard focus is in a text field?
 * hot keys on save dialog disappeared?  every other load?
 
@@ -76,6 +75,7 @@ Breaking and significant changes are **bold**.  These are major departures from 
 * **consolidate keymaps**
 * **change labels on keymap groupings to right_hand_mouse, left_hand_mouse**
 * **separate mouse mappings from keyboard mappings**
+* **Change deselect all to Ctrl+Shift+A**
 * Alt Mouse Middle for perspective toggle
 * dont allow the keyboard mapping control window to map mouse actions
 * require any mapping in the mouse control to include a mouse action
@@ -85,9 +85,11 @@ Breaking and significant changes are **bold**.  These are major departures from 
 * add controls and mouse dialog window management
 
 ## Layout and Tabs
-* fixed tab not displaying on program load
-* fixed spurious "unsaved changes" prompt when closing world without making changes
-* don't open new window for open world
+* *rename Open World Button to => Worlds and menu File => Open World to Worlds*
+* *move MRU to main menu*
+* *change new window for open world into world managing tab in main window*
+* allow managing of worlds in Worlds Menu.  e.g  Open, Save As, Delete
+* fixed tabs not displaying on program load
 * add "Convert World" title to Convert tab and make "Currently Opened World" a title on About tab
 * remove Close world button from About and convert tabs in favor of the tab X and hotkeys
 * add tooltip to X icon showing the hotkey
@@ -99,8 +101,8 @@ Breaking and significant changes are **bold**.  These are major departures from 
 * Add menu and hotkey for 'Save As'
 * support save as different format
 * ctrl+Q and Esc cancel open world
-* move MRU to main menu
 * add MRU to file menu
 * add Backups feature
 * add delete feature
 * "Clear" deletes all of mru.
+* add pneumonics and clean up menus

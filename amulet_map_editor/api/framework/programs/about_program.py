@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 from amulet_map_editor.api import lang
 from amulet_map_editor.api.wx.ui.simple import SimplePanel
 from amulet_map_editor.api.datatypes import MenuData
+from amulet_map_editor.api.framework.menu_utils import ensure_mnemonic
 from amulet_map_editor.api.framework.programs import BaseProgram
 
 if TYPE_CHECKING:
@@ -40,16 +41,16 @@ class AboutProgram(SimplePanel, BaseProgram):
         )
 
     def menu(self, menu: MenuData) -> MenuData:
-        menu.setdefault(lang.get("menu_bar.options.menu_name"), {}).setdefault(
-            "options", {}
+        menu.setdefault(lang.get("menu_bar.file.menu_name"), {}).setdefault(
+            "system", {}
         ).setdefault(
-            f"{lang.get('program_3d_edit.menu_bar.file.preferences')}\tCtrl+P",
+            f"{ensure_mnemonic(lang.get('program_3d_edit.menu_bar.file.preferences').replace('&', ''), 'p')}\tCtrl+P",
             lambda evt: self.GetTopLevelParent()._edit_preferences(),
         )
         menu.setdefault(lang.get("menu_bar.help.menu_name"), {}).setdefault(
             "help", {}
         ).setdefault(
-            lang.get("program_3d_edit.menu_bar.help.user_guide"),
+            ensure_mnemonic(lang.get("program_3d_edit.menu_bar.help.user_guide").replace('&', ''), "u"),
             lambda evt: self._help_controls(),
         )
         return menu

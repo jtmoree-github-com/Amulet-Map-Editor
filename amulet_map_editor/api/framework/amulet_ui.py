@@ -13,12 +13,13 @@ from amulet_map_editor.api.wx.ui.select_world import open_level_from_dialog, Wor
 from amulet_map_editor.api.wx.ui.traceback_dialog import TracebackDialog
 from amulet_map_editor import __version__, lang
 from amulet_map_editor.api.framework.pages import WorldPageUI
-from .pages import AmuletMainMenu, BackupsPageUI, DeletePageUI, BasePageUI
+from .pages import AmuletMainMenu, BackupsPageUI, BasePageUI
 
 from amulet_map_editor.api import image
 from amulet_map_editor.api import config
 from amulet_map_editor.api.wx.ui.simple import SimpleDialog
 from amulet_map_editor.api.wx.util.ui_preferences import preserve_ui_preferences
+from amulet_map_editor.api.framework.menu_utils import ensure_mnemonic
 
 log = logging.getLogger(__name__)
 
@@ -176,8 +177,6 @@ class AmuletUI(wx.Frame):
             self._level_notebook.close_world_select_tab()
         elif current_page is self._level_notebook._backups_page:
             self._level_notebook.close_backups_tab()
-        elif current_page is self._level_notebook._delete_page:
-            self._level_notebook.close_delete_tab()
         elif current_page is self._level_notebook._main_menu:
             self.Close()
 
@@ -215,10 +214,6 @@ class AmuletUI(wx.Frame):
         """Open the backups tab."""
         self._level_notebook.open_backups_tab()
 
-    def open_delete_tab(self):
-        """Open the delete worlds tab."""
-        self._level_notebook.open_delete_tab()
-
     def close_world_select_tab(self):
         """Close the world selector tab if open."""
         self._level_notebook.close_world_select_tab()
@@ -226,10 +221,6 @@ class AmuletUI(wx.Frame):
     def close_backups_tab(self):
         """Close the backups tab if open."""
         self._level_notebook.close_backups_tab()
-
-    def close_delete_tab(self):
-        """Close the delete worlds tab if open."""
-        self._level_notebook.close_delete_tab()
 
     def close_level(self, path: str):
         """Close a given level. You should use the method in the app."""
@@ -264,7 +255,7 @@ class AmuletUI(wx.Frame):
         menu_dict.setdefault(lang.get("menu_bar.file.menu_name"), {}).setdefault(
             "system", {}
         ).setdefault(
-            f"&{lang.get('menu_bar.file.open_world')}\tCtrl+O",
+            f"{ensure_mnemonic(lang.get('menu_bar.file.open_world').replace('&', ''), 'o')}\tCtrl+O",
             lambda evt: self.open_world_select_tab(),
         )
 
@@ -273,7 +264,7 @@ class AmuletUI(wx.Frame):
             menu_dict.setdefault(lang.get("menu_bar.file.menu_name"), {}).setdefault(
                 "system", {}
             ).setdefault(
-                "&Preferences\tCtrl+P",
+                f"{ensure_mnemonic(lang.get('program_3d_edit.menu_bar.file.preferences').replace('&', ''), 'p')}\tCtrl+P",
                 lambda evt: self._edit_preferences(),
             )
 
@@ -297,7 +288,7 @@ class AmuletUI(wx.Frame):
                     )
             else:
                 # Placeholder when there are no recent worlds yet.
-                recent_menu.setdefault("(No recent worlds)", lambda evt: None)
+                recent_menu.setdefault(ensure_mnemonic("(No recent worlds)", "n"), lambda evt: None)
 
         # menu_dict.setdefault(lang.get('menu_bar.file.menu_name'), {}).setdefault('system', {}).setdefault('Create World', lambda: self.world.save())
         menu_dict = self._level_notebook.extend_menu(menu_dict)
@@ -347,25 +338,67 @@ class AmuletUI(wx.Frame):
         if not isinstance(recent_worlds_limit, int) or recent_worlds_limit < 1:
             recent_worlds_limit = DEFAULT_RECENT_WORLDS_LIMIT
 
+        # Get backup settings
+        meta = config.get("amulet_meta", {})
+        backup_config = meta.get("backup", {})
+        backup_folder = backup_config.get("backup_folder", os.path.expanduser("~"))
+
         dialog = SimpleDialog(self, "Preferences")
-        sizer = wx.FlexGridSizer(1, 2, 0, 0)
+        sizer = wx.FlexGridSizer(2, 3, 8, 8)
+        sizer.AddGrowableCol(1, 1)
         dialog.sizer.Add(sizer, flag=wx.ALL, border=5)
 
+        # Recent Worlds Limit
         recent_worlds_limit_ui = wx.SpinCtrl(
             dialog, min=1, max=100, initial=recent_worlds_limit
         )
         sizer.Add(
             wx.StaticText(dialog, label="Recent Worlds Limit"),
-            flag=wx.LEFT | wx.TOP | wx.ALIGN_CENTER_VERTICAL | wx.EXPAND,
+            flag=wx.LEFT | wx.TOP | wx.ALIGN_CENTER_VERTICAL,
             border=5,
         )
         sizer.Add(
             recent_worlds_limit_ui,
-            flag=wx.LEFT | wx.TOP | wx.ALIGN_CENTER_VERTICAL | wx.EXPAND,
+            flag=wx.LEFT | wx.TOP | wx.ALIGN_CENTER_VERTICAL,
             border=5,
         )
+        sizer.Add(
+            wx.StaticText(dialog, label=""),  # Placeholder for browse button column
+        )
+
+        # Backup Folder
+        backup_folder_ui = wx.TextCtrl(dialog, value=backup_folder)
+        backup_folder_ui.SetMinSize((500, -1))  # Ensure wide enough for long paths
+        backup_folder_label = wx.StaticText(dialog, label="Backup Folder")
+        backup_folder_label.SetToolTip("Backup folder for world directories")
+        sizer.Add(
+            backup_folder_label,
+            flag=wx.LEFT | wx.TOP | wx.ALIGN_CENTER_VERTICAL,
+            border=5,
+        )
+        sizer.Add(
+            backup_folder_ui,
+            flag=wx.LEFT | wx.TOP | wx.EXPAND,
+            border=5,
+        )
+        
+        def _browse_backup_folder(_evt):
+            with wx.DirDialog(
+                dialog,
+                "Choose backup folder",
+                defaultPath=backup_folder_ui.GetValue().strip() or os.path.expanduser("~"),
+                style=wx.DD_DEFAULT_STYLE,
+            ) as dlg:
+                if dlg.ShowModal() == wx.ID_OK:
+                    backup_folder_ui.SetValue(dlg.GetPath())
+        
+        browse_btn = wx.Button(dialog, label="Browse...")
+        browse_btn.Bind(wx.EVT_BUTTON, _browse_backup_folder)
+        sizer.Add(browse_btn, flag=wx.LEFT | wx.TOP, border=5)
 
         dialog.Fit()
+        # Ensure minimum dialog width for long paths
+        dialog.SetMinSize((700, dialog.GetSize().height if dialog.GetSize().height > 0 else 200))
 
         if dialog.ShowModal() == wx.ID_OK:
             edit_config.setdefault("options", {})
@@ -373,6 +406,11 @@ class AmuletUI(wx.Frame):
                 recent_worlds_limit_ui.GetValue()
             )
             config.put(EDIT_CONFIG_ID, edit_config)
+            
+            # Save backup folder setting
+            meta.setdefault("backup", {})
+            meta["backup"]["backup_folder"] = backup_folder_ui.GetValue().strip()
+            config.put("amulet_meta", meta)
 
 
 class AmuletLevelNotebook(flatnotebook.FlatNotebook):
@@ -400,9 +438,9 @@ class AmuletLevelNotebook(flatnotebook.FlatNotebook):
         self._main_menu = AmuletMainMenu(self)
         self._world_selector = None
         self._backups_page = None
-        self._delete_page = None
         self._open_worlds = {}
         self._force_quit_without_save = False
+        self._tabs_refresh_pending = False
 
     def init(self):
         self._add_world_tab(self._main_menu, lang.get("main_menu.tab_name"))
@@ -465,7 +503,7 @@ class AmuletLevelNotebook(flatnotebook.FlatNotebook):
 
         # Create a new world selector tab
         self._world_selector = WorldSelectPageUI(self)
-        self._add_world_tab(self._world_selector, lang.get("select_world.title"))
+        self._add_world_tab(self._world_selector, lang.get("main_menu.open_world"))
 
     def close_world_select_tab(self):
         """Close the world selector tab if it is open."""
@@ -499,34 +537,15 @@ class AmuletLevelNotebook(flatnotebook.FlatNotebook):
             self.DeletePage(page_index)
         self._backups_page = None
 
-    def open_delete_tab(self):
-        """Open the delete worlds tab."""
-        if self._delete_page is not None:
-            page_index = self.GetPageIndex(self._delete_page)
-            if page_index != wx.NOT_FOUND:
-                self.SetSelection(page_index)
-                return
-            self._delete_page = None
-
-        self._delete_page = DeletePageUI(self)
-        self._add_world_tab(self._delete_page, "Delete Worlds")
-
-    def close_delete_tab(self):
-        """Close the delete worlds tab if it is open."""
-        if self._delete_page is None:
-            return
-
-        page_index = self.GetPageIndex(self._delete_page)
-        if page_index != wx.NOT_FOUND:
-            self.DeletePage(page_index)
-        self._delete_page = None
-
     def _add_world_tab(self, page: BasePageUI, obj_name: str):
         """Add a tab and enable it."""
         self.AddPage(page, obj_name, True)
         # Defer the tab-strip fixup so it runs after AddPage's internal
         # Freeze/Thaw and all event handlers have finished.
-        wx.CallAfter(self._ensure_tabs_visible)
+        # Only schedule one refresh even if multiple tabs are added quickly.
+        if not self._tabs_refresh_pending:
+            self._tabs_refresh_pending = True
+            wx.CallAfter(self._ensure_tabs_visible)
 
     def close_level(self, path: str):
         """Close a given world and remove it from the notebook"""
@@ -545,8 +564,6 @@ class AmuletLevelNotebook(flatnotebook.FlatNotebook):
                 self._world_selector = None
             elif page is self._backups_page:
                 self._backups_page = None
-            elif page is self._delete_page:
-                self._delete_page = None
             elif hasattr(page, "path"):
                 path = page.path
                 try:
@@ -568,8 +585,6 @@ class AmuletLevelNotebook(flatnotebook.FlatNotebook):
             self._world_selector = None
         elif page is self._backups_page:
             self._backups_page = None
-        elif page is self._delete_page:
-            self._delete_page = None
         elif hasattr(page, 'path'):
             # It's a world page
             if page.can_disable() and page.can_close():
@@ -620,6 +635,7 @@ class AmuletLevelNotebook(flatnotebook.FlatNotebook):
         Freeze/Thaw cycle in AddPage.  This helper forces the container
         visible and triggers a synchronous repaint.
         """
+        self._tabs_refresh_pending = False
         if self.GetPageCount() > 1:
             if not self._pages.IsShown():
                 self._pages.Show()
@@ -646,9 +662,6 @@ class AmuletLevelNotebook(flatnotebook.FlatNotebook):
             if self._backups_page is not None:
                 self._backups_page = None
 
-            if self._delete_page is not None:
-                self._delete_page = None
-
             evt.Skip()
             return
 
@@ -667,12 +680,6 @@ class AmuletLevelNotebook(flatnotebook.FlatNotebook):
             if page_index != wx.NOT_FOUND:
                 self.DeletePage(page_index)
             self._backups_page = None
-
-        if self._delete_page is not None:
-            page_index = self.GetPageIndex(self._delete_page)
-            if page_index != wx.NOT_FOUND:
-                self.DeletePage(page_index)
-            self._delete_page = None
 
         # Only block close if actual world pages are still open.
         if self._open_worlds:

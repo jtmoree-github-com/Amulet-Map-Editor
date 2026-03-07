@@ -74,16 +74,16 @@ world.close_world=Close World
 # Menu bar
 ## The menu displayed at the top of the screen
 menu_bar.file.menu_name=&File
-menu_bar.file.open_world=Open World
-menu_bar.file.close_world=Close World
-menu_bar.file.quit=Quit
-menu_bar.options.menu_name=&Options
+menu_bar.file.open_world=W&orlds
+menu_bar.file.close_world=&Close World
+menu_bar.file.quit=&Quit
+menu_bar.options.menu_name=C&ontrols
 menu_bar.help.menu_name=&Help
 
 # Main menu
 ## The start screen
 main_menu.tab_name=Main Menu
-main_menu.open_world=Open World
+main_menu.open_world=Worlds
 main_menu.user_manual=User Manual
 main_menu.bug_tracker=Bug Tracker
 main_menu.discord=Amulet Discord
@@ -140,6 +140,9 @@ select_world.recent_worlds=Recently Opened Worlds
 select_world.clear_all=Clear All
 select_world.no_loader_found=Could not find a loader for this world.
 select_world.loading_world_failed=Error loading world.
+select_world.looking_for_worlds_in=Looking in:
+select_world.mcworld_search_locations=MCWorld Search Locations
+select_world.discovered_worlds=Discovered
 
 # Key configuration dialog
 key_config.key_select=Key Select
@@ -284,13 +287,13 @@ program_3d_edit.menu_bar.edit.goto=Goto
 program_3d_edit.menu_bar.edit.select_all=Select All
 program_3d_edit.menu_bar.edit.deselect=Deselect
 program_3d_edit.menu_bar.edit.deselect_all=Deselect All
-program_3d_edit.menu_bar.navigation.menu_name=&Navigation
+program_3d_edit.menu_bar.navigation.menu_name=Ca&mera
 program_3d_edit.menu_bar.navigation.toggle_projection=Toggle Projection
 program_3d_edit.menu_bar.navigation.toggle_camera_cursor=Toggle camera/highlighter move
-program_3d_edit.menu_bar.navigation.goto=&Teleport Camera to specific coordiates
-program_3d_edit.menu_bar.options.keyboard_controls=Keyboard Controls...
-program_3d_edit.menu_bar.options.mouse_control=Mouse Control...
-program_3d_edit.menu_bar.options.camera=Camera Controls...
+program_3d_edit.menu_bar.navigation.goto=Teleport Camera to Coordinates...
+program_3d_edit.menu_bar.options.keyboard_controls=Keyboard...
+program_3d_edit.menu_bar.options.mouse_control=Mouse...
+program_3d_edit.menu_bar.options.camera=Camera...
 program_3d_edit.dialog.keyboard_mappings_title=Keyboard Mappings
 program_3d_edit.dialog.mouse_mappings_title=Mouse Mappings
 program_3d_edit.menu_bar.help.user_guide=User Guide (online)

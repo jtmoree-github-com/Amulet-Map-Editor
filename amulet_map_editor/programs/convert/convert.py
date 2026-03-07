@@ -11,6 +11,7 @@ from amulet_map_editor import lang
 from amulet_map_editor.api.wx.ui.simple import SimplePanel, SimpleScrollablePanel
 from amulet_map_editor.api.wx.ui.select_world import WorldSelectDialog, WorldUI
 from amulet_map_editor.api.datatypes import MenuData
+from amulet_map_editor.api.framework.menu_utils import ensure_mnemonic
 from amulet_map_editor.api.framework.programs import BaseProgram
 
 if TYPE_CHECKING:
@@ -100,7 +101,7 @@ class ConvertExtension(SimpleScrollablePanel, BaseProgram):
         menu.setdefault(lang.get("menu_bar.help.menu_name"), {}).setdefault(
             "control", {}
         ).setdefault(
-            lang.get("program_convert.menu_bar.help.user_guide"),
+            ensure_mnemonic(lang.get("program_convert.menu_bar.help.user_guide"), "u"),
             lambda evt: self._help_controls(),
         )
         return menu
