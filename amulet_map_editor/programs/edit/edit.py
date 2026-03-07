@@ -35,6 +35,7 @@ from amulet_map_editor.programs.edit.api.key_config import (
     ACT_ZOOM_IN,
     ACT_ZOOM_OUT,
     ACT_SAVE_AS,
+    ACT_SAVE_ALL,
     ACT_SAVE_ALL_CLOSE,
     ACT_QUIT_WITHOUT_SAVE,
     ACT_PASTE,
@@ -308,6 +309,17 @@ class EditExtension(wx.Panel, BaseProgram):
             "system", {}
         ).setdefault(
             self._menu_label(
+                "Save All",
+                ACT_SAVE_ALL,
+                "Ctrl+Shift+A",
+                "l",
+            ),
+            lambda evt: self._save_all(),
+        )
+        menu.setdefault(lang.get("menu_bar.file.menu_name"), {}).setdefault(
+            "system", {}
+        ).setdefault(
+            self._menu_label(
                 lang.get('action.act_save_all_close'),
                 ACT_SAVE_ALL_CLOSE,
                 "Ctrl+Shift+Q",
@@ -510,6 +522,11 @@ class EditExtension(wx.Panel, BaseProgram):
         parent = self.GetParent()
         if hasattr(parent, "_save_as"):
             parent._save_as()
+
+    def _save_all(self):
+        """Save all open worlds without closing."""
+        if self._canvas is not None:
+            self._canvas._save_all_worlds()
 
     def _save_all_and_close(self):
         if self._canvas is not None:

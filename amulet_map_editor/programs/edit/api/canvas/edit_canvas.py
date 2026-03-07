@@ -19,6 +19,7 @@ from ..key_config import (
     ACT_PASTE,
     ACT_HELP,
     ACT_SAVE_AS,
+    ACT_SAVE_ALL,
     ACT_SAVE_ALL_CLOSE,
     ACT_QUIT_WITHOUT_SAVE,
     ACT_SWITCH_TO_SELECT_MODE,

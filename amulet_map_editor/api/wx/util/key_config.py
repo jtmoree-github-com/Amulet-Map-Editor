@@ -925,6 +925,7 @@ class KeyConfig(wx.BoxSizer):
             ("Quit Without Saving", "Ctrl+Alt+Shift+Q", "ACT_QUIT_WITHOUT_SAVE"),
             (lang.get("program_3d_edit.menu_bar.file.save"), "Ctrl+S", None),
             ("Save As...", "Ctrl+Shift+S", "ACT_SAVE_AS"),
+            ("Save All", "Ctrl+Shift+A", "ACT_SAVE_ALL"),
             ("Save and Quit", "Ctrl+Shift+Q", "ACT_SAVE_ALL_CLOSE"),
             ("Next Tab in Current World", "Ctrl+Shift+Page Down", None),
             ("Previous Tab in Current World", "Ctrl+Shift+Page Up", None),
