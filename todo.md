@@ -13,7 +13,6 @@
 * can we make the mode controls dockable so that they can open in a different window?
 * research export interface.  it's confusing
 * make controls dialogs available on program open?
-* make ctrl_shift_alt_q close all dialogs (didn't work)
 
 ## bugs
 * alt page up /down rotation walks 
@@ -24,7 +23,7 @@
 
 # done
 
-breaking and significant changes are marked with !.  These are major departures from stock amulet.
+Breaking and significant changes are **bold**.  These are major departures from stock amulet.
 
 * clarify terminology in interface
     - highlighter
@@ -59,6 +58,7 @@ breaking and significant changes are marked with !.  These are major departures 
 * Ctrl+Q to Close World 
 * ctrl+shift_Q to save all and close
 * ctrl+alt+shift+Q to quit without saving
+* ctrl+alt+shift+Q now closes all open dialogs (modal and modeless) before quitting
 * Ctrl+Shift+S save all
 * ctrl+R for run operation
 * Ctrl+F to search fields

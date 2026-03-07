@@ -5,6 +5,7 @@ from typing import Dict, Union
 import traceback
 import logging
 import sys
+import platform
 
 from amulet.api.errors import LoaderNoneMatched
 from amulet_map_editor.api.wx.ui.select_world import open_level_from_dialog, WorldSelectPageUI
@@ -74,6 +75,17 @@ class AmuletUI(wx.Frame):
         
         # Set up accelerator table for global hotkeys
         self._setup_accelerators()
+
+        # Register an OS-level hotkey for Ctrl+Alt+Shift+Q so it fires
+        # even when a modal dialog is open.
+        self._HOTKEY_FORCE_QUIT_ID = wx.NewIdRef()
+        if platform.system() == "Windows":
+            self.RegisterHotKey(
+                self._HOTKEY_FORCE_QUIT_ID,
+                wx.MOD_CONTROL | wx.MOD_ALT | wx.MOD_SHIFT,
+                ord('Q'),
+            )
+            self.Bind(wx.EVT_HOTKEY, self._on_hotkey_force_quit, id=self._HOTKEY_FORCE_QUIT_ID)
 
     def open_level(self, path: str):
         """Open a level. You should use the method in the app."""
@@ -161,9 +173,25 @@ class AmuletUI(wx.Frame):
         """Handle Ctrl+Alt+Shift+Q - force quit without saving or prompts."""
         self.force_quit_without_save()
 
+    def _on_hotkey_force_quit(self, evt):
+        """Handle OS-level hotkey for force quit (works over modal dialogs)."""
+        self.force_quit_without_save()
+
     def force_quit_without_save(self):
-        """Force close the main window without saving or prompts."""
+        """Force close all dialogs and the main window without saving."""
         self._level_notebook._force_quit_without_save = True
+
+        # Close all modal and modeless dialogs first so they don't block
+        # the frame from closing.
+        for win in wx.GetTopLevelWindows():
+            if isinstance(win, wx.Dialog):
+                try:
+                    if win.IsModal():
+                        win.EndModal(wx.ID_CANCEL)
+                    else:
+                        win.Close(force=True)
+                except Exception:
+                    pass
 
         self.Close(force=True)
 
