@@ -278,8 +278,18 @@ class FilePanel(EditCanvasContainer):
         tooltip = lang.get("program_3d_edit.file_ui.move_button_tooltip")
         keybind = self.canvas.key_binds.get(ACT_TOGGLE_WASD_MODE)
         if keybind:
-            hotkey_text = format_key_display(stringify_key(keybind))
-            return f"{tooltip} Hotkey: {hotkey_text}"
+            # key_binds may return a list of bindings per action
+            if isinstance(keybind, list):
+                for b in keybind:
+                    mod, trig = b
+                    if not (isinstance(trig, str) and trig.startswith("CONTROLLER_")):
+                        keybind = b
+                        break
+                else:
+                    keybind = keybind[0] if keybind else None
+            if keybind:
+                hotkey_text = format_key_display(stringify_key(keybind))
+                return f"{tooltip} Hotkey: {hotkey_text}"
         return tooltip
 
     def _change_dimension(self, evt: DimensionChangeEvent):

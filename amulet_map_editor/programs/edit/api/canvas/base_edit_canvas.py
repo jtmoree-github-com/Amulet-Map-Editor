@@ -45,6 +45,7 @@ import amulet_map_editor.programs.edit as amulet_edit
 from amulet_map_editor.api.opengl.camera import ControllableCamera
 from amulet_map_editor.api.wx.util.button_input import ButtonInput
 from amulet_map_editor.api.wx.util.mouse_movement import MouseMovement
+from amulet_map_editor.api.wx.util.controller_input import ControllerInput
 from amulet_map_editor.api.wx.ui.traceback_dialog import TracebackDialog
 from ..renderer import Renderer
 
@@ -77,6 +78,8 @@ class BaseEditCanvas(EventCanvas):
         self._buttons: ButtonInput = ButtonInput(self)
         self._mouse: MouseMovement = MouseMovement(self)
         self._mouse.set_middle()
+        self._controller: ControllerInput = ControllerInput(self, deadzone=0.15, sensitivity=1.0)
+        self._controller_keybinds = {}  # Store controller button mappings
 
         resource_packs_dir = os.path.join(os.environ["DATA_DIR"], "resource_packs")
         readme_path = os.path.join(resource_packs_dir, "readme.txt")
@@ -267,6 +270,7 @@ class BaseEditCanvas(EventCanvas):
         self.selection.bind_events()
         self.buttons.bind_events()
         self.mouse.bind_events()
+        self.controller.bind_events()
         self.renderer.bind_events()
 
     def enable(self):
@@ -274,11 +278,13 @@ class BaseEditCanvas(EventCanvas):
         self.SetCurrent(self._context)
         self.renderer.enable()
         self.buttons.enable()
+        self.controller.enable()
 
     def disable(self):
         """Disable the canvas and unload all geometry."""
         self.renderer.disable()
         self.buttons.disable()
+        self.controller.disable()
 
     def is_closeable(self):
         """Check that the canvas and contained data is safe to be closed."""
@@ -322,6 +328,25 @@ class BaseEditCanvas(EventCanvas):
     def mouse(self) -> MouseMovement:
         """A class that manages mouse movement."""
         return self._mouse
+
+    @property
+    def controller(self) -> ControllerInput:
+        """A class that manages controller/gamepad input."""
+        return self._controller
+
+    @property
+    def controller_keybinds(self):
+        """Get the current controller keybindings."""
+        return self._controller_keybinds
+
+    @controller_keybinds.setter
+    def controller_keybinds(self, keybinds: dict):
+        """Set controller keybindings and register them with button input."""
+        self._controller_keybinds = keybinds
+        # Register controller keybinds with the button input system
+        if keybinds and self.controller.is_available:
+            log.debug(f"Registering {len(keybinds)} controller actions")
+            self.buttons.register_actions(keybinds)
 
     @property
     def selection(self) -> SelectionManager:

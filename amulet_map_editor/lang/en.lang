@@ -223,6 +223,7 @@ action.act_cursor_backwards=Selection Backwards
 action.act_cursor_left=Selection Left
 action.act_cursor_right=Selection Right
 action.act_paste=Paste
+action.act_cut=Cut
 action.act_help=Help
 action.act_switch_to_select_mode=Select
 action.act_switch_to_paste_mode=Paste
@@ -272,6 +273,8 @@ action.act_change_projection_mouse=Toggle Projection
 action.act_save_as=Save As...
 action.act_save_all_close=Save and Quit
 action.act_quit_without_save=Quit Without Saving
+action.act_next_mode=Next Mode
+action.act_prev_mode=Previous Mode
 
 ## Menu bar
 program_3d_edit.menu_bar.file.save=Save
@@ -293,9 +296,11 @@ program_3d_edit.menu_bar.navigation.toggle_camera_cursor=Toggle camera/highlight
 program_3d_edit.menu_bar.navigation.goto=Teleport Camera to Coordinates...
 program_3d_edit.menu_bar.options.keyboard_controls=Keyboard...
 program_3d_edit.menu_bar.options.mouse_control=Mouse...
+program_3d_edit.menu_bar.options.gamepad_controls=Gamepad...
 program_3d_edit.menu_bar.options.camera=Camera...
 program_3d_edit.dialog.keyboard_mappings_title=Keyboard Mappings
 program_3d_edit.dialog.mouse_mappings_title=Mouse Mappings
+program_3d_edit.dialog.gamepad_mappings_title=Gamepad Mappings
 program_3d_edit.menu_bar.help.user_guide=User Guide (online)
 
 ## Select tool

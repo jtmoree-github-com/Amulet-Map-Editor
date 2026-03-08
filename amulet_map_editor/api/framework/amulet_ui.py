@@ -156,11 +156,9 @@ class AmuletUI(wx.Frame):
             page_count = current_tab.GetPageCount()
             if page_count > 1:
                 current_tab.AdvanceSelection(direction > 0)
-                # Force repaint of the tab area
-                tab_area = current_tab.GetTabArea()
-                if tab_area is not None:
-                    tab_area.Refresh()
-                    tab_area.Update()
+                # Force repaint of the notebook area
+                current_tab.Refresh()
+                current_tab.Update()
     
     def _navigate_notebooks(self, direction):
         """Navigate between worlds and main menu (1 for next, -1 for prev)."""

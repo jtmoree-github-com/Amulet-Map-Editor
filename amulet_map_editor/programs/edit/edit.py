@@ -30,6 +30,9 @@ from amulet_map_editor.programs.edit.api.key_config import (
     MouseKeys,
     MousePresets,
     MouseActionGroups,
+    ControllerKeys,
+    ControllerPresets,
+    ControllerActionGroups,
     ACT_INCR_SPEED,
     ACT_DECR_SPEED,
     ACT_ZOOM_IN,
@@ -438,6 +441,12 @@ class EditExtension(wx.Panel, BaseProgram):
         menu.setdefault(lang.get("menu_bar.options.menu_name"), {}).setdefault(
             "options", {}
         ).setdefault(
+            self._menu_label(lang.get('program_3d_edit.menu_bar.options.gamepad_controls'), None, "Ctrl+J", "g"),
+            lambda evt: self._edit_gamepad_control(),
+        )
+        menu.setdefault(lang.get("menu_bar.options.menu_name"), {}).setdefault(
+            "options", {}
+        ).setdefault(
             self._menu_label(lang.get('program_3d_edit.menu_bar.options.camera'), None, "Ctrl+I", "c"),
             lambda evt: self._edit_camera_controls(),
         )
@@ -471,7 +480,18 @@ class EditExtension(wx.Panel, BaseProgram):
         if action_id and self._canvas is not None:
             keybind = self._canvas.key_binds.get(action_id)
             if keybind is not None:
-                return self._format_hotkey(keybind)
+                # key_binds may return a list of bindings per action
+                if isinstance(keybind, list):
+                    # Pick the first non-controller binding for the menu label
+                    for b in keybind:
+                        mod, trig = b
+                        if not (isinstance(trig, str) and trig.startswith("CONTROLLER_")):
+                            return self._format_hotkey(b)
+                    # All bindings are controller-only; use first one
+                    if keybind:
+                        return self._format_hotkey(keybind[0])
+                else:
+                    return self._format_hotkey(keybind)
         return fallback_hotkey
 
     @staticmethod
@@ -551,6 +571,22 @@ class EditExtension(wx.Panel, BaseProgram):
         """Toggle between camera move and cursor move modes."""
         self._canvas.wasd_moves_cursor = not self._canvas.wasd_moves_cursor
 
+    def _register_all_keybinds(self):
+        """Load and register all keybinds (keyboard, mouse, and controller)."""
+        if self._canvas is None:
+            return
+        
+        # Clear and re-register all bindings using the canvas's key_binds property
+        # The key_binds property combines keyboard, mouse, and controller keybinds
+        self._canvas.buttons.clear_registered_actions()
+        self._canvas.buttons.register_actions(self._canvas.key_binds)
+        
+        # Register special speed/zoom controls
+        self._canvas.buttons.register_action(ACT_INCR_SPEED, tuple(), DOT)
+        self._canvas.buttons.register_action(ACT_DECR_SPEED, tuple(), COMMA)
+        self._canvas.buttons.register_action(ACT_ZOOM_IN, tuple(), DOT)
+        self._canvas.buttons.register_action(ACT_ZOOM_OUT, tuple(), COMMA)
+
     def _edit_controls(self):
         edit_config = config.get(EDIT_CONFIG_ID, {})
         keybind_id = edit_config.get(
@@ -584,34 +620,8 @@ class EditExtension(wx.Panel, BaseProgram):
             edit_config["user_keyboard_keybinds"] = user_keybinds
             edit_config["keyboard_keybind_group"] = keybind_id
             config.put(EDIT_CONFIG_ID, edit_config)
-            # Register both keyboard and mouse bindings
-            self._canvas.buttons.clear_registered_actions()
-            mouse_keybind_id = edit_config.get(
-                "mouse_keybind_group",
-                edit_config.get("keybind_group", DefaultKeybindGroupId),
-            )
-            user_mouse_keybinds = edit_config.get(
-                "user_mouse_keybinds",
-                {
-                    group_id: {
-                        action: key
-                        for action, key in group.items()
-                        if action in MouseKeys
-                    }
-                    for group_id, group in edit_config.get("user_keybinds", {}).items()
-                },
-            )
-            if mouse_keybind_id in user_mouse_keybinds:
-                mouse_keybinds = user_mouse_keybinds[mouse_keybind_id]
-            else:
-                mouse_keybinds = MousePresets.get(mouse_keybind_id, {})
-            # Combine keyboard and mouse bindings
-            combined_keybinds = {**keybinds, **mouse_keybinds}
-            self._canvas.buttons.register_actions(combined_keybinds)
-            self._canvas.buttons.register_action(ACT_INCR_SPEED, tuple(), DOT)
-            self._canvas.buttons.register_action(ACT_DECR_SPEED, tuple(), COMMA)
-            self._canvas.buttons.register_action(ACT_ZOOM_IN, tuple(), DOT)
-            self._canvas.buttons.register_action(ACT_ZOOM_OUT, tuple(), COMMA)
+            # Re-register all keybinds (keyboard, mouse, and controller)
+            self._register_all_keybinds()
 
     def _edit_mouse_control(self):
         if self._canvas is not None:
@@ -676,32 +686,80 @@ class EditExtension(wx.Panel, BaseProgram):
                 edit_config["user_mouse_keybinds"] = user_keybinds
                 edit_config["mouse_keybind_group"] = keybind_id
                 config.put(EDIT_CONFIG_ID, edit_config)
+                # Re-register all keybinds (keyboard, mouse, and controller)
+                self._register_all_keybinds()
 
-                # Register both keyboard and mouse bindings
-                self._canvas.buttons.clear_registered_actions()
-                keyboard_keybind_id = edit_config.get(
-                    "keyboard_keybind_group",
-                    edit_config.get("keybind_group", DefaultKeybindGroupId),
-                )
-                user_keyboard_keybinds = edit_config.get(
-                    "user_keyboard_keybinds",
-                    {
-                        group_id: {
-                            action: key
-                            for action, key in group.items()
-                            if action in KeyboardKeys
-                        }
-                        for group_id, group in edit_config.get("user_keybinds", {}).items()
-                    },
-                )
-                if keyboard_keybind_id in user_keyboard_keybinds:
-                    keyboard_keybinds = user_keyboard_keybinds[keyboard_keybind_id]
-                else:
-                    keyboard_keybinds = KeyboardPresets.get(keyboard_keybind_id, {})
-                combined_keybinds = {**keyboard_keybinds, **mouse_keybinds}
-                self._canvas.buttons.register_actions(combined_keybinds)
-                self._canvas.buttons.register_action(ACT_INCR_SPEED, tuple(), DOT)
-                self._canvas.buttons.register_action(ACT_DECR_SPEED, tuple(), COMMA)
+    def _edit_gamepad_control(self):
+        """Configure gamepad/controller button mappings."""
+        if self._canvas is not None:
+            edit_config = config.get(EDIT_CONFIG_ID, {})
+            keybind_id = edit_config.get(
+                "controller_keybind_group",
+                "playstation",  # Default to PlayStation layout
+            )
+            user_keybinds = edit_config.get(
+                "user_controller_keybinds",
+                {},
+            )
+            fixed_keybinds = ControllerPresets
+
+            # Show controller keybind configuration
+            dialog = wx.Dialog(
+                self,
+                title=lang.get("program_3d_edit.dialog.gamepad_mappings_title"),
+                style=wx.CAPTION
+                | wx.CLOSE_BOX
+                | wx.MAXIMIZE_BOX
+                | wx.MINIMIZE_BOX
+                | wx.SYSTEM_MENU
+                | wx.RESIZE_BORDER,
+            )
+            sizer = wx.BoxSizer(wx.VERTICAL)
+            dialog.SetSizer(sizer)
+            dialog_sizer = wx.BoxSizer(wx.VERTICAL)
+            sizer.Add(dialog_sizer, 1, wx.EXPAND)
+
+            invert_horizontal = wx.CheckBox(dialog, label="Invert Horizontal Stick")
+            invert_horizontal.SetValue(bool(edit_config.get("controller_invert_horizontal", True)))
+            dialog_sizer.Add(invert_horizontal, 0, wx.LEFT | wx.RIGHT | wx.TOP, 10)
+
+            invert_vertical = wx.CheckBox(dialog, label="Invert Vertical Stick")
+            invert_vertical.SetValue(bool(edit_config.get("controller_invert_vertical", False)))
+            dialog_sizer.Add(invert_vertical, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 10)
+
+            dialog_sizer.Add(wx.StaticLine(dialog), 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 10)
+
+            key_config = KeyConfig(
+                dialog,
+                keybind_id,
+                ControllerKeys,
+                fixed_keybinds,
+                user_keybinds,
+                ControllerActionGroups,
+                show_misc=False,
+                show_descriptions=True,
+                require_mouse_action=False,
+            )
+            dialog_sizer.Add(key_config, 1, wx.EXPAND)
+
+            # Add bottom button sizer
+            bottom_sizer = wx.BoxSizer(wx.HORIZONTAL)
+            sizer.Add(bottom_sizer, 0, wx.EXPAND)
+            bottom_sizer.AddStretchSpacer()
+            button_sizer = dialog.CreateButtonSizer(wx.OK | wx.CANCEL)
+            bottom_sizer.Add(button_sizer, flag=wx.ALL, border=5)
+
+            dialog.Fit()
+
+            if dialog.ShowModal() == wx.ID_OK:
+                user_keybinds, keybind_id, controller_keybinds = key_config.options
+                edit_config["user_controller_keybinds"] = user_keybinds
+                edit_config["controller_keybind_group"] = keybind_id
+                edit_config["controller_invert_horizontal"] = invert_horizontal.GetValue()
+                edit_config["controller_invert_vertical"] = invert_vertical.GetValue()
+                config.put(EDIT_CONFIG_ID, edit_config)
+                # Re-register all keybinds (keyboard, mouse, and controller)
+                self._register_all_keybinds()
 
     def _edit_camera_controls(self):
         if self._canvas is not None:

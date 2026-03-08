@@ -6,8 +6,8 @@
 * Clipboard (white)
 
 # todo
-* add controller handler to use gamepad?
 * export/import interface?
+* optimize gamepad controller mappings
 
 ## misc
 * can we have a blender 3d keymap preset?
@@ -105,3 +105,4 @@ Major changes that may not be liked by current userbase are **bold**.  Significa
 * add controls and mouse dialog window management from OS
 * use modifiers with left and right mouse buttons for accessibility
 * invert color on nav toggles
+* add controller handler to use gamepads

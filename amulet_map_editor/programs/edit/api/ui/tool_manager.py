@@ -153,3 +153,38 @@ class ToolManagerSizer(wx.BoxSizer, EditCanvasContainer):
             
             self.canvas.reset_bound_events()
             self.canvas.Layout()
+
+    def _current_mode_key(self):
+        """Return the current (tool_name, state_name) key in _mode_map."""
+        if self._active_tool is None:
+            return None
+        tool_name = self._active_tool.name
+        state_name = None
+        if self._active_tool_state and "operation_name" in self._active_tool_state:
+            state_name = self._active_tool_state["operation_name"]
+        key = (tool_name, state_name)
+        if key in self._mode_map:
+            return key
+        return None
+
+    def _cycle_mode(self, delta: int):
+        """Cycle through the mode map by delta (+1 for next, -1 for prev)."""
+        keys = list(self._mode_map.keys())
+        if not keys:
+            return
+        current = self._current_mode_key()
+        if current is not None and current in keys:
+            idx = (keys.index(current) + delta) % len(keys)
+        else:
+            idx = 0
+        tool_name, state_name = keys[idx]
+        state = {"operation_name": state_name} if state_name else None
+        wx.PostEvent(self.canvas, ToolChangeEvent(tool=tool_name, state=state))
+
+    def next_mode(self):
+        """Switch to the next mode in the hotbar."""
+        self._cycle_mode(1)
+
+    def prev_mode(self):
+        """Switch to the previous mode in the hotbar."""
+        self._cycle_mode(-1)

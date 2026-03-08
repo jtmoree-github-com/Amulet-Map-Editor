@@ -236,16 +236,28 @@ class ButtonInput(WindowContainer):
             self._registered_actions[action_id] = (action,)
 
     def register_actions(self, actions: KeybindGroup):
+        controller_count = 0
         for action_id, keybind in actions.items():
-            try:
-                modifier_keys, trigger_key = keybind
-                self.register_action(action_id, modifier_keys, trigger_key)
-            except TypeError:
-                log.warning(
-                    "Skipping invalid keybind for action %s: %r",
-                    action_id,
-                    keybind,
-                )
+            # Support a list of bindings per action (for multi-input-type actions)
+            if isinstance(keybind, list):
+                bindings = keybind
+            else:
+                bindings = [keybind]
+            for binding in bindings:
+                try:
+                    modifier_keys, trigger_key = binding
+                    # Log controller button registrations
+                    if isinstance(trigger_key, str) and trigger_key.startswith("CONTROLLER_"):
+                        controller_count += 1
+                    self.register_action(action_id, modifier_keys, trigger_key)
+                except TypeError:
+                    log.warning(
+                        "Skipping invalid keybind for action %s: %r",
+                        action_id,
+                        binding,
+                    )
+        if controller_count > 0:
+            log.info(f"Registered {controller_count} controller button actions")
 
     def _find_actions(
         self, key: KeyType, pressed_keys: Set[KeyType] = None
@@ -253,6 +265,20 @@ class ButtonInput(WindowContainer):
         """A method to find all actions triggered by `key` with the modifier keys also pressed."""
         if pressed_keys is None:
             pressed_keys = self._pressed_keys
+        
+        # Debug controller button lookups
+        if isinstance(key, str) and key.startswith("CONTROLLER_"):
+            # Log all controller actions currently registered
+            controller_actions = {
+                action_id: [(a.trigger_key, a.modifier_keys) for a in actions]
+                for action_id, actions in self._registered_actions.items()
+                if any(isinstance(a.trigger_key, str) and a.trigger_key.startswith("CONTROLLER_") for a in actions)
+            }
+            if controller_actions:
+                log.debug(f"Looking up {key}, registered controller actions: {list(controller_actions.keys())[:5]}...")
+            else:
+                log.warning(f"Looking up {key} but NO controller actions are registered!")
+        
         return tuple(
             action_id
             for action_id, action_bindings in self._registered_actions.items()
@@ -268,6 +294,11 @@ class ButtonInput(WindowContainer):
         key = serialise_key(evt)
         if key is None:
             return
+        
+        # Log controller button presses for debugging
+        if isinstance(key, str) and key.startswith("CONTROLLER_"):
+            log.debug(f"ButtonInput received controller button: {key}")
+        
         if self._should_ignore_keypress(evt, key):
             evt.Skip()
             return
@@ -281,6 +312,11 @@ class ButtonInput(WindowContainer):
                 active_keys.add(Alt)
 
             action_ids = self._find_actions(key, active_keys)
+            
+            # Log controller button actions for debugging
+            if isinstance(key, str) and key.startswith("CONTROLLER_"):
+                log.debug(f"Found {len(action_ids)} actions for {key} with modifiers {active_keys}: {action_ids}")
+            
             if isinstance(key, str) and not key.startswith("MOUSE_") and Alt in active_keys:
                 filtered_action_ids = []
                 for action_id in action_ids:
@@ -354,6 +390,25 @@ class ButtonInput(WindowContainer):
             return True
 
         return isinstance(focused, (wx.TextCtrl, wx.SearchCtrl, wx.ComboBox))
+
+    def controller_press(self, button_string: str):
+        """Handle a controller button press directly (no wx event needed)."""
+        key = button_string
+        if not self.is_key_pressed(key):
+            active_keys = self._pressed_keys.copy()
+            action_ids = self._find_actions(key, active_keys)
+            log.debug(f"Controller press {key}: found actions {action_ids}")
+            self._continuous_actions.update(action_ids)
+            for action_id in action_ids:
+                wx.PostEvent(self.window, InputPressEvent(action_id))
+            self._pressed_keys.add(key)
+
+    def controller_release(self, button_string: str):
+        """Handle a controller button release directly (no wx event needed)."""
+        key = button_string
+        if self.is_key_pressed(key):
+            self._pressed_keys.remove(key)
+        self._clean_up_actions()
 
     def _release(self, evt):
         """Event to handle a number of different key releases"""

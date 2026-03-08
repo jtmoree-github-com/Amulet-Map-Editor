@@ -1,4 +1,5 @@
 import wx
+import logging
 from wx.lib.wordwrap import wordwrap
 from amulet_map_editor.api import lang
 from amulet_map_editor.api.wx.ui.simple import (
@@ -9,6 +10,8 @@ from amulet_map_editor.api.wx.ui.simple import (
 from typing import Dict, Tuple, Optional, Union, Sequence
 
 from amulet_map_editor.api.image import ADD_ICON, SUBTRACT_ICON, EDIT_ICON
+
+log = logging.getLogger(__name__)
 
 ModifierKeyType = str
 KeyType = Union[int, str]
@@ -260,6 +263,10 @@ def serialise_modifier(
 def serialise_key(evt: Union[wx.KeyEvent, wx.MouseEvent]) -> Optional[KeyType]:
     """Get the serialised version of the key that was pressed/released."""
     if isinstance(evt, wx.KeyEvent):
+        # Check if this is a controller button event
+        if hasattr(evt, '_controller_button'):
+            return evt._controller_button
+        
         key = evt.GetUnicodeKey() or evt.GetKeyCode()
 
         if 33 <= key <= 126:
@@ -284,6 +291,12 @@ def serialise_key_event(
     evt: Union[wx.KeyEvent, wx.MouseEvent],
 ) -> Optional[SerialisedKeyType]:
     if isinstance(evt, wx.KeyEvent):
+        # Check if this is a controller button event
+        if hasattr(evt, '_controller_button'):
+            # Controller buttons don't use traditional modifiers
+            # Instead, check if other controller buttons are held
+            return (tuple(), evt._controller_button)
+        
         key = evt.GetUnicodeKey() or evt.GetKeyCode()
         if key in (wx.WXK_CONTROL, wx.WXK_SHIFT, wx.WXK_ALT):
             return
@@ -312,7 +325,33 @@ def stringify_key(key: SerialisedKeyType) -> str:
     return " + ".join([str(s) for s in key[0] + (key[1],)])
 
 
+# Controller button display names (PlayStation / Xbox layout)
+CONTROLLER_BUTTON_NAMES = {
+    "CONTROLLER_CROSS": "✕ Cross (A)",
+    "CONTROLLER_CIRCLE": "○ Circle (B)",
+    "CONTROLLER_SQUARE": "□ Square (X)",
+    "CONTROLLER_TRIANGLE": "△ Triangle (Y)",
+    "CONTROLLER_L1": "L1 (LB)",
+    "CONTROLLER_R1": "R1",
+    "CONTROLLER_L2": "L2",
+    "CONTROLLER_R2": "R2",
+    "CONTROLLER_SHARE": "Share (Back)",
+    "CONTROLLER_OPTIONS": "Options (Start)",
+    "CONTROLLER_L3": "L3 (LS)",
+    "CONTROLLER_R3": "R3 (RS)",
+    "CONTROLLER_PS": "PS Button",
+    "CONTROLLER_TOUCHPAD": "Touchpad",
+    "CONTROLLER_DPAD_UP": "D-Pad ▲",
+    "CONTROLLER_DPAD_DOWN": "D-Pad ▼",
+    "CONTROLLER_DPAD_LEFT": "D-Pad ◄",
+    "CONTROLLER_DPAD_RIGHT": "D-Pad ►",
+}
+
+
 def format_key_display(key_text: str) -> str:
+    # Check if it's a controller button
+    if key_text in CONTROLLER_BUTTON_NAMES:
+        return CONTROLLER_BUTTON_NAMES[key_text]
     return key_text.upper()
 
 
@@ -356,14 +395,71 @@ class KeyCatcher(wx.Dialog):
         panel.Bind(wx.EVT_MOUSE_AUX1_DOWN, self._on_key)
         panel.Bind(wx.EVT_MOUSE_AUX2_DOWN, self._on_key)
 
+        # Poll controller for button presses
+        self._controller_timer = None
+        self._prev_buttons = set()
+        try:
+            import pygame
+            if pygame.joystick.get_init() and pygame.joystick.get_count() > 0:
+                self._joystick = pygame.joystick.Joystick(0)
+                self._controller_timer = wx.Timer(self)
+                self.Bind(wx.EVT_TIMER, self._poll_controller, self._controller_timer)
+                self._controller_timer.Start(16)
+                # Snapshot currently held buttons so we don't immediately capture them
+                pygame.event.pump()
+                for i in range(self._joystick.get_numbuttons()):
+                    if self._joystick.get_button(i):
+                        self._prev_buttons.add(i)
+        except Exception:
+            pass
+
         sizer = wx.BoxSizer(wx.VERTICAL)
         sizer.Add(panel, 1, wx.EXPAND)
         self.SetSizer(sizer)
         self.Layout()
 
+    def _poll_controller(self, evt):
+        """Check for controller button presses."""
+        try:
+            import pygame
+            from amulet_map_editor.api.wx.util.controller_input import BUTTON_TO_STRING, DPAD_TO_STRING
+            pygame.event.pump()
+            
+            current_buttons = set()
+            for i in range(self._joystick.get_numbuttons()):
+                if self._joystick.get_button(i):
+                    current_buttons.add(i)
+            
+            newly_pressed = current_buttons - self._prev_buttons
+            self._prev_buttons = current_buttons
+            
+            for button_id in newly_pressed:
+                if button_id in BUTTON_TO_STRING:
+                    button_string = BUTTON_TO_STRING[button_id]
+                    self._key = ((), button_string)
+                    if self._controller_timer:
+                        self._controller_timer.Stop()
+                    self.EndModal(1)
+                    return
+            
+            # Check D-pad
+            if self._joystick.get_numhats() > 0:
+                hat = self._joystick.get_hat(0)
+                if hat != (0, 0) and hat in DPAD_TO_STRING:
+                    self._key = ((), DPAD_TO_STRING[hat])
+                    if self._controller_timer:
+                        self._controller_timer.Stop()
+                    self.EndModal(1)
+                    return
+        except Exception:
+            pass
+
     def _on_key(self, evt):
         key = serialise_key_event(evt)
         if key is not None:
+            log.debug(f"CaptureKeyDialog captured key: {key}")
+            if self._controller_timer:
+                self._controller_timer.Stop()
             self._key = key
             self.EndModal(1)
 

@@ -62,6 +62,25 @@ DOT = "."
 COMMA = ","
 SEMICOLON = ";"
 BACKTICK = "`"
+
+# Controller button constants (PlayStation layout, compatible with Xbox)
+CONTROLLER_CROSS = "CONTROLLER_CROSS"           # X (PS) / A (Xbox)
+CONTROLLER_CIRCLE = "CONTROLLER_CIRCLE"         # O (PS) / B (Xbox)
+CONTROLLER_SQUARE = "CONTROLLER_SQUARE"         # Square (PS) / X (Xbox)
+CONTROLLER_TRIANGLE = "CONTROLLER_TRIANGLE"     # Triangle (PS) / Y (Xbox)
+CONTROLLER_L1 = "CONTROLLER_L1"                 # L1 (PS) / LB (Xbox)
+CONTROLLER_R1 = "CONTROLLER_R1"                 # R1 (PS) / RB (Xbox)
+CONTROLLER_L2 = "CONTROLLER_L2"                 # L2 button click
+CONTROLLER_R2 = "CONTROLLER_R2"                 # R2 button click
+CONTROLLER_SHARE = "CONTROLLER_SHARE"           # Share (PS) / Back (Xbox)
+CONTROLLER_OPTIONS = "CONTROLLER_OPTIONS"       # Options (PS) / Start (Xbox)
+CONTROLLER_L3 = "CONTROLLER_L3"                 # Left stick click
+CONTROLLER_R3 = "CONTROLLER_R3"                 # Right stick click
+CONTROLLER_DPAD_UP = "CONTROLLER_DPAD_UP"
+CONTROLLER_DPAD_DOWN = "CONTROLLER_DPAD_DOWN"
+CONTROLLER_DPAD_LEFT = "CONTROLLER_DPAD_LEFT"
+CONTROLLER_DPAD_RIGHT = "CONTROLLER_DPAD_RIGHT"
+
 from collections import OrderedDict
 
 ACT_MOVE_UP = "ACT_MOVE_UP"
@@ -86,6 +105,7 @@ ACT_CURSOR_FORWARDS = "ACT_CURSOR_FORWARDS"
 ACT_CURSOR_BACKWARDS = "ACT_CURSOR_BACKWARDS"
 ACT_CURSOR_LEFT = "ACT_CURSOR_LEFT"
 ACT_CURSOR_RIGHT = "ACT_CURSOR_RIGHT"
+ACT_CUT = "ACT_CUT"
 ACT_PASTE = "ACT_PASTE"
 ACT_SWITCH_TO_SELECT_MODE = "ACT_SWITCH_TO_SELECT_MODE"
 ACT_SWITCH_TO_PASTE_MODE = "ACT_SWITCH_TO_PASTE_MODE"
@@ -123,6 +143,8 @@ ACT_TOGGLE_FULLSCREEN = "ACT_TOGGLE_FULLSCREEN"
 ACT_MOVE_CAMERA_TO_CURSOR = "ACT_MOVE_CAMERA_TO_CURSOR"
 ACT_TELEPORT_CURSOR_TO_CAMERA = "ACT_TELEPORT_CURSOR_TO_CAMERA"
 ACT_HELP = "ACT_HELP"
+ACT_NEXT_MODE = "ACT_NEXT_MODE"
+ACT_PREV_MODE = "ACT_PREV_MODE"
 ACT_SAVE_AS = "ACT_SAVE_AS"
 ACT_SAVE_ALL = "ACT_SAVE_ALL"
 ACT_SAVE_ALL_CLOSE = "ACT_SAVE_ALL_CLOSE"
@@ -517,5 +539,100 @@ MouseActionGroups = OrderedDict([
     ("3d", [
         ACT_INCR_SPEED,
         ACT_DECR_SPEED,
+    ]),
+])
+
+# Controller-compatible action keys (actions that make sense with a gamepad)
+ControllerKeys: List[KeyActionType] = [
+    ACT_BOX_CLICK_ADD,
+    ACT_TOGGLE_MOVE_TARGET,
+    ACT_CHANGE_PROJECTION,
+    ACT_MOVE_UP,
+    ACT_MOVE_DOWN,
+    ACT_CURSOR_UP,
+    ACT_CURSOR_DOWN,
+    ACT_CURSOR_FORWARDS,
+    ACT_CURSOR_BACKWARDS,
+    ACT_CURSOR_LEFT,
+    ACT_CURSOR_RIGHT,
+    ACT_CUT,
+    ACT_PASTE,
+    ACT_NEXT_MODE,
+    ACT_PREV_MODE,
+]
+
+# Controller presets (matches Minecraft console controls as closely as possible)
+ControllerPresets: KeybindContainer = {
+    "playstation": {
+        # Triggers
+        ACT_CURSOR_DOWN: ((), CONTROLLER_L2),                  # L2: Cursor down (Y axis)
+        ACT_CUT: ((), CONTROLLER_R2),                          # Cut
+        
+        # Face buttons (matches MC: X=jump, O=sneak/drop, △=inventory, □=crafting)
+        ACT_MOVE_UP: ((), CONTROLLER_CROSS),                   # X: Camera up (jump)
+        ACT_MOVE_DOWN: ((), CONTROLLER_CIRCLE),                # O: Camera down (sneak)
+        ACT_BOX_CLICK_ADD: ((), CONTROLLER_TRIANGLE),          # △: Add Highlight Box
+        
+        # Shoulder buttons
+        ACT_PASTE: ((), CONTROLLER_R1),                        # R1
+        ACT_CURSOR_UP: ((), CONTROLLER_L1),                    # L1: Cursor up (Y axis)
+
+        # D-pad (move highlighter/cursor in XZ plane)
+        ACT_CURSOR_FORWARDS: ((), CONTROLLER_DPAD_UP),         # D-pad Up: Cursor forwards
+        ACT_CURSOR_BACKWARDS: ((), CONTROLLER_DPAD_DOWN),      # D-pad Down: Cursor backwards
+        ACT_CURSOR_LEFT: ((), CONTROLLER_DPAD_LEFT),           # D-pad Left: Cursor left
+        ACT_CURSOR_RIGHT: ((), CONTROLLER_DPAD_RIGHT),         # D-pad Right: Cursor right
+        
+        # Shoulder buttons
+        ACT_TOGGLE_MOVE_TARGET: ((), CONTROLLER_SQUARE),       # □: Toggle move target
+        ACT_CHANGE_PROJECTION: ((), CONTROLLER_R3),            # R3: Toggle Projection (2d/3d)
+    },
+    "xbox": {
+        # Triggers
+        ACT_CURSOR_DOWN: ((), CONTROLLER_L2),                  # LT: Cursor down (Y axis)
+        ACT_CUT: ((), CONTROLLER_R2),                          # Cut
+        
+        # Face buttons (matches MC: A=jump, B=sneak/drop, Y=inventory, X=crafting)
+        ACT_MOVE_UP: ((), CONTROLLER_CROSS),                   # A: Camera up (jump)
+        ACT_MOVE_DOWN: ((), CONTROLLER_CIRCLE),                # B: Camera down (sneak)
+        ACT_BOX_CLICK_ADD: ((), CONTROLLER_TRIANGLE),          # Y: Add Highlight Box
+        
+        # Shoulder buttons
+        ACT_PASTE: ((), CONTROLLER_R1),                        # R1
+        ACT_CURSOR_UP: ((), CONTROLLER_L1),                    # LB: Cursor up (Y axis)
+
+        # D-pad (move highlighter/cursor in XZ plane)
+        ACT_CURSOR_FORWARDS: ((), CONTROLLER_DPAD_UP),         # D-pad Up: Cursor forwards
+        ACT_CURSOR_BACKWARDS: ((), CONTROLLER_DPAD_DOWN),      # D-pad Down: Cursor backwards
+        ACT_CURSOR_LEFT: ((), CONTROLLER_DPAD_LEFT),           # D-pad Left: Cursor left
+        ACT_CURSOR_RIGHT: ((), CONTROLLER_DPAD_RIGHT),         # D-pad Right: Cursor right
+        
+        # Face buttons
+        ACT_TOGGLE_MOVE_TARGET: ((), CONTROLLER_SQUARE),       # X: Toggle move target
+        ACT_CHANGE_PROJECTION: ((), CONTROLLER_R3),            # R3: Toggle Projection (2d/3d)
+    },
+}
+
+# Controller action groups (organized by function)
+ControllerActionGroups = OrderedDict([
+    ("movement", [
+        ACT_MOVE_UP,
+        ACT_MOVE_DOWN,
+    ]),
+    ("editing", [
+        ACT_PASTE,
+        ACT_CUT,
+    ]),
+    ("cursor", [
+        ACT_CURSOR_UP,
+        ACT_CURSOR_DOWN,
+        ACT_CURSOR_FORWARDS,
+        ACT_CURSOR_BACKWARDS,
+        ACT_CURSOR_LEFT,
+        ACT_CURSOR_RIGHT,
+    ]),
+    ("view", [
+        ACT_CHANGE_PROJECTION,
+        ACT_TOGGLE_MOVE_TARGET,
     ]),
 ])

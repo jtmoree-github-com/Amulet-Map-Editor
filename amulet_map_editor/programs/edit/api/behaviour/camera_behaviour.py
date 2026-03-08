@@ -5,8 +5,10 @@ import time
 
 from amulet_map_editor.api.opengl.camera import Projection
 from amulet_map_editor.api.opengl.data_types import CameraRotationType
+from amulet_map_editor import CONFIG
 
 from .base_behaviour import BaseBehaviour
+from ...edit import EDIT_CONFIG_ID
 from ..events import (
     InputHeldEvent,
     EVT_INPUT_HELD,
@@ -124,6 +126,23 @@ class CameraBehaviour(BaseBehaviour):
         # Handle keyboard camera rotation (Alt + WASD).
         pitch += ((ACT_LOOK_DOWN in evt.action_ids) - (ACT_LOOK_UP in evt.action_ids)) * 2.0
         yaw += ((ACT_LOOK_RIGHT in evt.action_ids) - (ACT_LOOK_LEFT in evt.action_ids)) * 2.0
+        
+        # Controller input (analog sticks)
+        if self.canvas.controller.is_available:
+            left_x, left_y = self.canvas.controller.left_stick
+            right_x, right_y = self.canvas.controller.right_stick
+            edit_config = CONFIG.get(EDIT_CONFIG_ID, {})
+            invert_horizontal = bool(edit_config.get("controller_invert_horizontal", True))
+            invert_vertical = bool(edit_config.get("controller_invert_vertical", False))
+            
+            # Left stick controls movement (X = strafe, Y = forward/back)
+            right += left_x * 1.5
+            forward -= left_y * 1.5  # Invert Y for natural controls
+            
+            # Right stick controls camera rotation
+            # Default: stick right = look left (negative yaw), stick up = look down (negative pitch)
+            yaw += (-right_x if invert_horizontal else right_x) * 5.0
+            pitch += (-right_y if invert_vertical else right_y) * 5.0
 
         if self.canvas.camera.projection_mode == Projection.PERSPECTIVE:
             if self.canvas.camera.rotating:

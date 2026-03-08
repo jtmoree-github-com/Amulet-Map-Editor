@@ -13,10 +13,13 @@ from ..key_config import (
     DefaultKeybindGroupId,
     KeyboardPresets,
     MousePresets,
+    ControllerPresets,
     KeybindGroup,
     KeyboardKeys,
     MouseKeys,
+    ControllerKeys,
     ACT_PASTE,
+    ACT_CUT,
     ACT_HELP,
     ACT_SAVE_AS,
     ACT_SAVE_ALL,
@@ -35,11 +38,21 @@ from ..key_config import (
     ACT_TOGGLE_FULLSCREEN,
     ACT_MOVE_CAMERA_TO_CURSOR,
     ACT_TELEPORT_CURSOR_TO_CAMERA,
+    ACT_NEXT_MODE,
+    ACT_PREV_MODE,
     ACT_BOX_CLICK_KEY,
     ACT_CLEAR_START_HIGHLIGHT_BOX_ACTION,
     ACT_BOX_CLICK_ADD_KEY,
     ACT_BOX_CLICK,
     ACT_BOX_CLICK_ADD,
+    ACT_MOVE_UP,
+    ACT_MOVE_DOWN,
+    ACT_CURSOR_UP,
+    ACT_CURSOR_DOWN,
+    ACT_CURSOR_FORWARDS,
+    ACT_CURSOR_BACKWARDS,
+    CONTROLLER_L2,
+    CONTROLLER_R2,
     ACT_TOGGLE_MOVE_TARGET,
     ACT_TOGGLE_WASD_MODE,
     ACT_DESELECT_ALL_BOXES,
@@ -82,7 +95,7 @@ from amulet_map_editor import close_level
 from amulet_map_editor.api.wx.ui.traceback_dialog import TracebackDialog
 from amulet_map_editor.programs.edit.api.ui.goto import show_goto
 from amulet_map_editor.programs.edit.api.ui.tool_manager import ToolManagerSizer
-from amulet_map_editor.programs.edit.plugins.tools import PasteTool, SelectTool
+from amulet_map_editor.programs.edit.plugins.tools import PasteTool, SelectTool, OperationTool
 from amulet_map_editor.programs.edit.api.operations.errors import (
     OperationError,
     OperationSilentAbort,
@@ -291,12 +304,24 @@ class EditCanvas(BaseEditCanvas):
                 self.paste_from_cache()
             else:
                 wx.PostEvent(self, ToolChangeEvent(tool="Paste"))
+        elif evt.action_id == ACT_CUT:
+            # If already in select mode, cut. Otherwise, switch to select mode.
+            if isinstance(self._tool_sizer._active_tool, SelectTool):
+                self.cut()
+            else:
+                wx.PostEvent(self, ToolChangeEvent(tool="Select"))
+                # Schedule cut after switching to Select mode
+                wx.CallAfter(self.cut)
         elif evt.action_id == ACT_SWITCH_TO_SELECT_MODE:
             wx.PostEvent(self, ToolChangeEvent(tool="Select"))
         elif evt.action_id == ACT_SWITCH_TO_PASTE_MODE:
             wx.PostEvent(self, ToolChangeEvent(tool="Paste"))
         elif evt.action_id == ACT_SWITCH_TO_FILL_MODE:
-            wx.PostEvent(self, ToolChangeEvent(tool="Operation", state={"operation_name": "Fill"}))
+            # If already in Operation/Fill mode, run the operation. Otherwise, switch to Fill mode.
+            if isinstance(self._tool_sizer._active_tool, OperationTool):
+                self._tool_sizer.next_mode()
+            else:
+                wx.PostEvent(self, ToolChangeEvent(tool="Operation", state={"operation_name": "Fill"}))
         elif evt.action_id == ACT_SWITCH_TO_WATERLOG_MODE:
             wx.PostEvent(self, ToolChangeEvent(tool="Operation", state={"operation_name": "Waterlog"}))
         elif evt.action_id == ACT_SWITCH_TO_CLONE_MODE:
@@ -311,6 +336,12 @@ class EditCanvas(BaseEditCanvas):
             wx.PostEvent(self, ToolChangeEvent(tool="Export"))
         elif evt.action_id == ACT_SWITCH_TO_CHUNK_MODE:
             wx.PostEvent(self, ToolChangeEvent(tool="Chunk"))
+        elif evt.action_id == ACT_NEXT_MODE:
+            if self._tool_sizer is not None:
+                self._tool_sizer.next_mode()
+        elif evt.action_id == ACT_PREV_MODE:
+            if self._tool_sizer is not None:
+                self._tool_sizer.prev_mode()
         elif evt.action_id == ACT_TOGGLE_FULLSCREEN:
             parent = self.GetTopLevelParent()
             if parent.IsFullScreen():
@@ -633,12 +664,14 @@ class EditCanvas(BaseEditCanvas):
 
     def enable(self):
         super().enable()
-        self._tool_sizer.enable()
+        if self._tool_sizer is not None:
+            self._tool_sizer.enable()
         self.PostSizeEvent()
 
     def disable(self):
         super().disable()
-        self._tool_sizer.disable()
+        if self._tool_sizer is not None:
+            self._tool_sizer.disable()
 
     def _on_close(self, _):
         close_level(self.world.level_path)
@@ -657,6 +690,10 @@ class EditCanvas(BaseEditCanvas):
         mouse_group = config_.get(
             "mouse_keybind_group",
             config_.get("keybind_group", DefaultKeybindGroupId),
+        )
+        controller_group = config_.get(
+            "controller_keybind_group",
+            "playstation",
         )
 
         user_keyboard_keybinds = config_.get(
@@ -681,9 +718,58 @@ class EditCanvas(BaseEditCanvas):
                 for group_id, group in config_.get("user_keybinds", {}).items()
             },
         )
+        user_controller_keybinds = config_.get(
+            "user_controller_keybinds",
+            {
+                group_id: {
+                    action: key
+                    for action, key in group.items()
+                    if action in ControllerKeys
+                }
+                for group_id, group in config_.get("user_keybinds", {}).items()
+            },
+        )
+        user_controller_keybinds = {
+            group_id: {
+                action: key
+                for action, key in group.items()
+                if action in ControllerKeys
+            }
+            for group_id, group in user_controller_keybinds.items()
+        }
 
         keyboard_defaults = KeyboardPresets.get(keyboard_group, {})
         mouse_defaults = MousePresets.get(mouse_group, {})
+        controller_defaults = ControllerPresets.get(controller_group, {})
+        
+        # Debug: show controller preset defaults
+        # (removed - L1 mapping is now correct))
+
+        def _uses_trigger(binding) -> bool:
+            if not isinstance(binding, (list, tuple)) or len(binding) != 2:
+                return False
+            modifiers, key = binding
+            trigger_buttons = {CONTROLLER_L2, CONTROLLER_R2}
+            if key in trigger_buttons:
+                return True
+            return any(mod in trigger_buttons for mod in modifiers)
+
+        # Migrate old/invalid custom controller bindings that used L2/R2 for
+        # movement/cursor actions. Keep triggers reserved for select and paste.
+        forbidden_trigger_actions = {
+            ACT_MOVE_UP,
+            ACT_MOVE_DOWN,
+            ACT_CURSOR_UP,
+            ACT_CURSOR_DOWN,
+        }
+        cleaned_user_controller_keybinds = {}
+        for group_id, group in user_controller_keybinds.items():
+            cleaned_group = {}
+            for action, binding in group.items():
+                if action in forbidden_trigger_actions and _uses_trigger(binding):
+                    continue
+                cleaned_group[action] = binding
+            cleaned_user_controller_keybinds[group_id] = cleaned_group
 
         keyboard_keybinds = {
             **keyboard_defaults,
@@ -693,6 +779,20 @@ class EditCanvas(BaseEditCanvas):
             **mouse_defaults,
             **user_mouse_keybinds.get(mouse_group, {}),
         }
+        controller_keybinds = {
+            **controller_defaults,
+            **cleaned_user_controller_keybinds.get(controller_group, {}),
+        }
+
+        # Enforce trigger semantics in the active controller profile.
+        for action, binding in list(controller_keybinds.items()):
+            if action in {ACT_BOX_CLICK, ACT_CURSOR_UP, ACT_CURSOR_DOWN, ACT_CUT, ACT_PASTE}:
+                continue
+            if _uses_trigger(binding):
+                controller_keybinds.pop(action)
+        
+        # Debug: show what cursor actions are bound to
+        # (removed - L1 is now working correctly))
 
         camera_look_bindings = {
             ACT_LOOK_UP: ((Alt,), W),
@@ -703,7 +803,17 @@ class EditCanvas(BaseEditCanvas):
 
         keyboard_keybinds.update(camera_look_bindings)
 
-        return {**keyboard_keybinds, **mouse_keybinds}
+        # Merge all keybind sources. Since multiple input types can bind the
+        # same action (e.g. ACT_BOX_CLICK on both mouse and controller), we
+        # collect *all* bindings per action instead of letting dict merge
+        # overwrite earlier entries.
+        merged: dict = {}
+        for source in (keyboard_keybinds, mouse_keybinds, controller_keybinds):
+            for action_id, binding in source.items():
+                if action_id not in merged:
+                    merged[action_id] = []
+                merged[action_id].append(binding)
+        return merged
 
     def _deselect(self):
         """Remove the last selection box, or switch to default tool if none left."""

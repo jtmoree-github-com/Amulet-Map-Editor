@@ -43,6 +43,7 @@ from amulet_map_editor.programs.edit.api.key_config import (
     ACT_ROTATE_CURSOR_PAGE_UP,
     ACT_ROTATE_CURSOR_PAGE_DOWN,
     ACT_BOX_CLICK_KEY,
+    ACT_BOX_CLICK_ADD_KEY,
     ACT_CLEAR_START_HIGHLIGHT_BOX_ACTION,
     ACT_TOGGLE_MOVE_TARGET,
     ACT_TOGGLE_WASD_MODE,
@@ -504,6 +505,9 @@ class SelectTool(wx.BoxSizer, DefaultBaseToolUI):
             self._move_point1_radio.SetValue(True)
         elif evt.action_id == ACT_BOX_CLICK_KEY:
             self._move_selection_radio.SetValue(True)
+        elif evt.action_id == ACT_BOX_CLICK_ADD_KEY:
+            # Let BlockSelectionBehaviour handle this
+            pass
         elif evt.action_id == ACT_TOGGLE_MOVE_TARGET:
             self._toggle_move_target()
         elif evt.action_id in (ACT_TOGGLE_WASD_MODE, ACT_TOGGLE_WASD_MODE_MOUSE):
