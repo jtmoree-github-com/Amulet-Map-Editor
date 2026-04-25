@@ -544,7 +544,7 @@ class KeyConfigDialog(SimpleDialog):
 
 
 class KeyConfig(wx.BoxSizer):
-    _EDITABLE_KEY_BUTTON_MIN_WIDTH = 240
+    _EDITABLE_KEY_BUTTON_MIN_WIDTH = 110
 
     def __init__(
         self,
@@ -587,7 +587,7 @@ class KeyConfig(wx.BoxSizer):
         self._rename.Bind(wx.EVT_BUTTON, lambda evt: self._rename_group())
         top_sizer.Add(self._rename, 0, wx.ALL, 5)
 
-        self._options = SimpleScrollablePanel(parent, size=(760, 560))
+        self._options = SimpleScrollablePanel(parent, size=(400, 560))
         self.Add(self._options, 1, wx.EXPAND)
 
         self._key_buttons: Dict[str, wx.Button] = {}
@@ -833,6 +833,14 @@ class KeyConfig(wx.BoxSizer):
         self._options.FitInside()
         self._bind_mouse_wheel_recursive(self._options)
 
+    def _show_hint_dialog(self, text: str):
+        wx.MessageDialog(
+            self._options,
+            text,
+            caption="Hint",
+            style=wx.OK | wx.ICON_INFORMATION,
+        ).ShowModal()
+
     def _rebuild_grouped_options(self, group, editable: bool):
         """Rebuild options panel with section headings and grouped actions."""
         # Clear existing widgets
@@ -845,10 +853,18 @@ class KeyConfig(wx.BoxSizer):
 
         if self._show_misc:
             philosophy_text = lang.get("key_config.philosophy")
-            philosophy_label = self._create_selectable_paragraph(
-                philosophy_text, wrap_width=620
+            hint_label = wx.StaticText(self._options, label="Hint")
+            hint_font = hint_label.GetFont()
+            hint_font.SetPointSize(max(6, hint_font.GetPointSize() - 1))
+            hint_font.SetUnderlined(True)
+            hint_label.SetFont(hint_font)
+            hint_label.SetForegroundColour(wx.Colour(30, 90, 180))
+            hint_label.SetCursor(wx.Cursor(wx.CURSOR_HAND))
+            hint_label.Bind(
+                wx.EVT_LEFT_UP,
+                lambda evt, text=philosophy_text: self._show_hint_dialog(text),
             )
-            main_sizer.Add(philosophy_label, 0, wx.ALL | wx.EXPAND, 10)
+            main_sizer.Add(hint_label, 0, wx.LEFT | wx.TOP | wx.BOTTOM, 10)
             main_sizer.Add(wx.StaticLine(self._options), 0, wx.EXPAND | wx.ALL, 5)
 
         if self._show_misc:
@@ -878,7 +894,7 @@ class KeyConfig(wx.BoxSizer):
             description_text = lang.get(description_key)
             if self._show_descriptions and description_text != description_key:  # If not the key itself, we have a valid translation
                 description = self._create_selectable_paragraph(
-                    description_text, wrap_width=500, italic=True
+                    description_text, wrap_width=280, italic=True
                 )
                 main_sizer.Add(description, 0, wx.ALL | wx.EXPAND, 5)
             
@@ -910,7 +926,7 @@ class KeyConfig(wx.BoxSizer):
                         hotkey_label = self._create_selectable_text(
                             key_text,
                             bold=True,
-                            min_width=180,
+                            min_width=90,
                         )
                         grid_sizer.Add(
                             hotkey_label,
@@ -920,7 +936,7 @@ class KeyConfig(wx.BoxSizer):
                         )
                     label = self._create_selectable_text(
                         format_label_display(lang.get(f"action.{action.lower()}")),
-                        min_width=420,
+                        min_width=170,
                     )
                     grid_sizer.Add(
                         label,
@@ -934,7 +950,7 @@ class KeyConfig(wx.BoxSizer):
                             hotkey_label = self._create_selectable_text(
                                 format_key_display(hotkey_text),
                                 bold=True,
-                                min_width=180,
+                                min_width=90,
                             )
                             grid_sizer.Add(
                                 hotkey_label,
@@ -944,7 +960,7 @@ class KeyConfig(wx.BoxSizer):
                             )
                             readonly_label = self._create_selectable_text(
                                 format_label_display(label_text),
-                                min_width=420,
+                                min_width=170,
                             )
                             grid_sizer.Add(
                                 readonly_label,
@@ -962,7 +978,7 @@ class KeyConfig(wx.BoxSizer):
                         hotkey_label = self._create_selectable_text(
                             format_key_display(hotkey_text),
                             bold=True,
-                            min_width=180,
+                            min_width=90,
                         )
                         grid_sizer.Add(
                             hotkey_label,
@@ -972,7 +988,7 @@ class KeyConfig(wx.BoxSizer):
                         )
                         readonly_label = self._create_selectable_text(
                             format_label_display(label_text),
-                            min_width=420,
+                            min_width=170,
                         )
                         grid_sizer.Add(
                             readonly_label,
@@ -1028,8 +1044,6 @@ class KeyConfig(wx.BoxSizer):
             ("Next World", "Ctrl+Page Down", None),
             ("Previous World", "Ctrl+Page Up", None),
             (lang.get("program_3d_edit.menu_bar.file.preferences"), "Ctrl+P", None),
-            (lang.get("program_3d_edit.menu_bar.options.keyboard_controls"), "Ctrl+K", None),
-            (lang.get("program_3d_edit.menu_bar.options.mouse_control"), "Ctrl+M", None),
             (lang.get("program_3d_edit.menu_bar.options.camera"), "Ctrl+I", None),
             (lang.get("program_3d_edit.menu_bar.edit.undo"), "Ctrl+Z", None),
             (lang.get("program_3d_edit.menu_bar.edit.redo"), "Ctrl+Y", None),
@@ -1046,7 +1060,7 @@ class KeyConfig(wx.BoxSizer):
             hotkey_label = self._create_selectable_text(
                 format_key_display(hotkey),
                 bold=True,
-                min_width=180,
+                min_width=90,
             )
             grid_sizer.Add(
                 hotkey_label,
@@ -1056,7 +1070,7 @@ class KeyConfig(wx.BoxSizer):
             )
             label_text = self._create_selectable_text(
                 format_label_display(display_label),
-                min_width=420,
+                min_width=170,
             )
             grid_sizer.Add(
                 label_text,
@@ -1104,7 +1118,7 @@ class KeyConfig(wx.BoxSizer):
                 hotkey_label = self._create_selectable_text(
                     key_text,
                     bold=True,
-                    min_width=180,
+                    min_width=90,
                 )
                 grid_sizer.Add(
                     hotkey_label,
@@ -1114,7 +1128,7 @@ class KeyConfig(wx.BoxSizer):
                 )
             label = self._create_selectable_text(
                 format_label_display(lang.get(f"action.{action.lower()}")),
-                min_width=420,
+                min_width=170,
             )
             grid_sizer.Add(
                 label,

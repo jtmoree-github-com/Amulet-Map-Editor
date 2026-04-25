@@ -10,12 +10,15 @@ from amulet.api.data_types import OperationYieldType
 
 EDIT_CONFIG_ID = "amulet_edit"
 DEFAULT_RECENT_WORLDS_LIMIT = 5
+CONTROLS_DOCK_MIN_WIDTH = 360
+CONTROLS_DOCK_DEFAULT_WIDTH = 400
+CONTROLS_DOCK_TAB_MAX_INDEX = 2
 
 from amulet_map_editor import lang
 from amulet_map_editor.api.framework.programs import BaseProgram
 from amulet_map_editor.api.framework.menu_utils import ensure_mnemonic
 from amulet_map_editor.api.datatypes import MenuData
-from amulet_map_editor.api.wx.util.key_config import KeyConfigDialog, KeyConfig
+from amulet_map_editor.api.wx.util.key_config import KeyConfig
 from amulet_map_editor.api.wx.ui.traceback_dialog import TracebackDialog
 from amulet_map_editor.api.wx.ui.simple import SimpleDialog
 from amulet_map_editor.programs.edit.api.canvas.edit_canvas import EditCanvas
@@ -104,6 +107,18 @@ class EditExtension(wx.Panel, BaseProgram):
         self._world = world
         self._canvas = None
         self._setup_thread = None
+        self._main_splitter = None
+        self._canvas_host = None
+        self._controls_dock = None
+        self._controls_notebook = None
+        self._keyboard_page = None
+        self._mouse_page = None
+        self._controller_page = None
+        self._keyboard_key_config = None
+        self._mouse_key_config = None
+        self._controller_key_config = None
+        self._controller_invert_horizontal = None
+        self._controller_invert_vertical = None
         self.Bind(wx.EVT_CHAR_HOOK, self._on_char_hook)
 
         self._sizer.AddStretchSpacer(1)
@@ -186,7 +201,28 @@ class EditExtension(wx.Panel, BaseProgram):
             self._temp_msg = None
             self._temp_loading_bar = None
             self._sizer.Clear(True)
-            self._sizer.Add(self._canvas, 1, wx.EXPAND)
+
+            self._main_splitter = wx.SplitterWindow(
+                self,
+                style=wx.SP_LIVE_UPDATE | wx.SP_3D,
+            )
+            self._main_splitter.SetMinimumPaneSize(220)
+            self._canvas_host = wx.Panel(self._main_splitter)
+            canvas_host_sizer = wx.BoxSizer(wx.VERTICAL)
+            self._canvas_host.SetSizer(canvas_host_sizer)
+            self._canvas.Reparent(self._canvas_host)
+            canvas_host_sizer.Add(self._canvas, 1, wx.EXPAND)
+            if self._canvas._file_panel is not None:
+                self._canvas._file_panel.reparent_to_canvas_parent()
+            self._sizer.Add(self._main_splitter, 1, wx.EXPAND)
+            self._create_controls_dock()
+
+            dock_settings = self._get_controls_dock_settings()
+            if dock_settings["visible"]:
+                self._show_controls_dock(dock_settings["tab_index"])
+            else:
+                self._hide_controls_dock(update_config=False)
+
             self._canvas.Show()
             self.Layout()
             # This must be called after the show handler is run
@@ -234,6 +270,8 @@ class EditExtension(wx.Panel, BaseProgram):
 
     def close(self):
         """Fully close the UI. Called when destroying the UI."""
+        if self._controls_dock is not None:
+            self._apply_all_controls()
         if self._canvas is not None:
             self._canvas.close()
 
@@ -417,6 +455,29 @@ class EditExtension(wx.Panel, BaseProgram):
                     "Ctrl+Shift+F",
                     "h",
                 ): lambda evt: self._canvas._teleport_selection_cursor_to_camera(),
+                self._menu_label("Options", None, "Ctrl+I", "o"):
+                    lambda evt: self._edit_camera_controls(),
+            }
+        )
+
+        menu.setdefault("&View", {}).setdefault("layout", {}).update(
+            {
+                ensure_mnemonic("Controls Pane", "c"):
+                    (
+                        lambda evt: self._set_controls_dock_visible(evt.IsChecked()),
+                        "Show or hide the controls pane",
+                        wx.ID_ANY,
+                        {
+                            "kind": "check",
+                            "checked": self._is_controls_dock_visible(),
+                        },
+                    ),
+                ensure_mnemonic("Keyboard", "k"):
+                    (lambda evt: self._edit_controls()),
+                ensure_mnemonic("Mouse", "m"):
+                    (lambda evt: self._edit_mouse_control()),
+                ensure_mnemonic("Gamepad", "g"):
+                    (lambda evt: self._edit_gamepad_control()),
             }
         )
 
@@ -425,30 +486,6 @@ class EditExtension(wx.Panel, BaseProgram):
         ).setdefault(
             self._menu_label(lang.get('program_3d_edit.menu_bar.file.preferences'), None, "Ctrl+P", "p"),
             lambda evt: self._edit_preferences(),
-        )
-        menu.setdefault(lang.get("menu_bar.options.menu_name"), {}).setdefault(
-            "options", {}
-        ).setdefault(
-            self._menu_label(lang.get('program_3d_edit.menu_bar.options.keyboard_controls'), None, "Ctrl+K", "k"),
-            lambda evt: self._edit_controls(),
-        )
-        menu.setdefault(lang.get("menu_bar.options.menu_name"), {}).setdefault(
-            "options", {}
-        ).setdefault(
-            self._menu_label(lang.get('program_3d_edit.menu_bar.options.mouse_control'), None, "Ctrl+M", "m"),
-            lambda evt: self._edit_mouse_control(),
-        )
-        menu.setdefault(lang.get("menu_bar.options.menu_name"), {}).setdefault(
-            "options", {}
-        ).setdefault(
-            self._menu_label(lang.get('program_3d_edit.menu_bar.options.gamepad_controls'), None, "Ctrl+J", "g"),
-            lambda evt: self._edit_gamepad_control(),
-        )
-        menu.setdefault(lang.get("menu_bar.options.menu_name"), {}).setdefault(
-            "options", {}
-        ).setdefault(
-            self._menu_label(lang.get('program_3d_edit.menu_bar.options.camera'), None, "Ctrl+I", "c"),
-            lambda evt: self._edit_camera_controls(),
         )
         menu.setdefault(lang.get("menu_bar.help.menu_name"), {}).setdefault(
             "help", {}
@@ -587,13 +624,114 @@ class EditExtension(wx.Panel, BaseProgram):
         self._canvas.buttons.register_action(ACT_ZOOM_IN, tuple(), DOT)
         self._canvas.buttons.register_action(ACT_ZOOM_OUT, tuple(), COMMA)
 
-    def _edit_controls(self):
+    def _get_controls_dock_settings(self) -> dict:
         edit_config = config.get(EDIT_CONFIG_ID, {})
-        keybind_id = edit_config.get(
+        dock_config = edit_config.get("controls_dock", {})
+        tab_index = dock_config.get("tab_index", 0)
+        width = dock_config.get("width", CONTROLS_DOCK_DEFAULT_WIDTH)
+        if not isinstance(tab_index, int):
+            tab_index = 0
+        tab_index = min(max(0, tab_index), CONTROLS_DOCK_TAB_MAX_INDEX)
+        return {
+            "visible": bool(dock_config.get("visible", False)),
+            "tab_index": tab_index,
+            "width": (
+                width
+                if isinstance(width, int) and width >= CONTROLS_DOCK_MIN_WIDTH
+                else CONTROLS_DOCK_DEFAULT_WIDTH
+            ),
+        }
+
+    def _save_controls_dock_settings(self, **updates):
+        edit_config = config.get(EDIT_CONFIG_ID, {})
+        dock_settings = edit_config.get("controls_dock", {})
+        dock_settings.update(updates)
+        edit_config["controls_dock"] = dock_settings
+        config.put(EDIT_CONFIG_ID, edit_config)
+
+    def _current_dock_width(self) -> int:
+        if self._main_splitter is None or not self._main_splitter.IsSplit():
+            settings = self._get_controls_dock_settings()
+            return settings["width"]
+        total_width = self._main_splitter.GetClientSize().GetWidth()
+        return max(CONTROLS_DOCK_MIN_WIDTH, total_width - self._main_splitter.GetSashPosition())
+
+    def _show_dock_in_splitter(self, width: int):
+        if self._main_splitter is None or self._controls_dock is None or self._canvas_host is None:
+            return
+        target_width = max(CONTROLS_DOCK_MIN_WIDTH, width)
+        if not self._main_splitter.IsSplit():
+            self._main_splitter.SplitVertically(self._canvas_host, self._controls_dock, -target_width)
+        else:
+            total_width = self._main_splitter.GetClientSize().GetWidth()
+            min_pane = self._main_splitter.GetMinimumPaneSize()
+            if total_width <= target_width + min_pane:
+                sash = min_pane
+            else:
+                sash = total_width - target_width
+            self._main_splitter.SetSashPosition(sash)
+
+    def _is_controls_dock_visible(self) -> bool:
+        return self._main_splitter is not None and self._main_splitter.IsSplit()
+
+    def _set_controls_dock_visible(self, visible: bool):
+        if visible:
+            self._show_controls_dock(self._get_controls_dock_settings()["tab_index"])
+        else:
+            self._hide_controls_dock()
+
+    def _create_controls_dock(self):
+        if self._main_splitter is None or self._controls_dock is not None:
+            return
+
+        self._controls_dock = wx.Panel(self._main_splitter)
+        self._controls_dock.SetMinSize((CONTROLS_DOCK_MIN_WIDTH, -1))
+        dock_font = self.GetFont()
+        dock_font.SetPointSize(max(6, dock_font.GetPointSize() - 2))
+        self._controls_dock.SetFont(dock_font)
+        dock_sizer = wx.BoxSizer(wx.VERTICAL)
+        self._controls_dock.SetSizer(dock_sizer)
+
+        header_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        header_label = wx.StaticText(self._controls_dock, label="Controls")
+        header_sizer.Add(header_label, 1, wx.ALL | wx.ALIGN_CENTER_VERTICAL, 5)
+        close_button = wx.Button(self._controls_dock, label="Close")
+        close_button.Bind(wx.EVT_BUTTON, lambda evt: self._hide_controls_dock())
+        header_sizer.Add(close_button, 0, wx.ALL, 5)
+        dock_sizer.Add(header_sizer, 0, wx.EXPAND)
+
+        self._controls_notebook = wx.Notebook(self._controls_dock)
+        self._keyboard_page = wx.Panel(self._controls_notebook)
+        self._mouse_page = wx.Panel(self._controls_notebook)
+        self._controller_page = wx.Panel(self._controls_notebook)
+
+        self._keyboard_page.SetSizer(wx.BoxSizer(wx.VERTICAL))
+        self._mouse_page.SetSizer(wx.BoxSizer(wx.VERTICAL))
+        self._controller_page.SetSizer(wx.BoxSizer(wx.VERTICAL))
+
+        self._controls_notebook.AddPage(self._keyboard_page, "Keyboard")
+        self._controls_notebook.AddPage(self._mouse_page, "Mouse")
+        self._controls_notebook.AddPage(self._controller_page, "Gamepad")
+        self._controls_notebook.Bind(wx.EVT_NOTEBOOK_PAGE_CHANGED, self._on_controls_tab_changed)
+        dock_sizer.Add(self._controls_notebook, 1, wx.EXPAND | wx.LEFT | wx.RIGHT, 5)
+
+        self._main_splitter.Bind(wx.EVT_SPLITTER_SASH_POS_CHANGED, self._on_controls_sash_changed)
+        self._rebuild_controls_tabs()
+        settings = self._get_controls_dock_settings()
+        self._show_dock_in_splitter(settings["width"])
+        self._controls_notebook.SetSelection(settings["tab_index"])
+
+    def _rebuild_controls_tabs(self):
+        if self._controls_notebook is None:
+            return
+
+        edit_config = config.get(EDIT_CONFIG_ID, {})
+
+        keyboard_keybind_id = edit_config.get(
             "keyboard_keybind_group",
             edit_config.get("keybind_group", DefaultKeybindGroupId),
         )
-        user_keybinds = edit_config.get(
+        keyboard_user_keybinds = edit_config.get(
             "user_keyboard_keybinds",
             {
                 group_id: {
@@ -604,165 +742,196 @@ class EditExtension(wx.Panel, BaseProgram):
                 for group_id, group in edit_config.get("user_keybinds", {}).items()
             },
         )
-        fixed_keybinds = KeyboardPresets
-        key_config = KeyConfigDialog(
-            self,
-            keybind_id,
+
+        keyboard_sizer = self._keyboard_page.GetSizer()
+        keyboard_sizer.Clear(True)
+        self._keyboard_key_config = KeyConfig(
+            self._keyboard_page,
+            keyboard_keybind_id,
             KeyboardKeys,
-            fixed_keybinds,
-            user_keybinds,
+            KeyboardPresets,
+            keyboard_user_keybinds,
             KeyboardActionGroups,
+            show_misc=True,
+            show_descriptions=True,
             require_mouse_action=False,
         )
-        key_config.SetTitle(lang.get("program_3d_edit.dialog.keyboard_mappings_title"))
-        if key_config.ShowModal() == wx.ID_OK:
-            user_keybinds, keybind_id, keybinds = key_config.options
+        keyboard_sizer.Add(self._keyboard_key_config, 1, wx.EXPAND)
+
+        mouse_keybind_id = edit_config.get(
+            "mouse_keybind_group",
+            edit_config.get("keybind_group", DefaultKeybindGroupId),
+        )
+        mouse_user_keybinds = edit_config.get(
+            "user_mouse_keybinds",
+            {
+                group_id: {
+                    action: key
+                    for action, key in group.items()
+                    if action in MouseKeys
+                }
+                for group_id, group in edit_config.get("user_keybinds", {}).items()
+            },
+        )
+
+        mouse_sizer = self._mouse_page.GetSizer()
+        mouse_sizer.Clear(True)
+        self._mouse_key_config = KeyConfig(
+            self._mouse_page,
+            mouse_keybind_id,
+            MouseKeys,
+            MousePresets,
+            mouse_user_keybinds,
+            MouseActionGroups,
+            show_misc=False,
+            show_descriptions=False,
+            require_mouse_action=True,
+        )
+        mouse_sizer.Add(self._mouse_key_config, 1, wx.EXPAND)
+
+        controller_keybind_id = edit_config.get(
+            "controller_keybind_group",
+            "playstation",
+        )
+        controller_user_keybinds = edit_config.get("user_controller_keybinds", {})
+
+        controller_sizer = self._controller_page.GetSizer()
+        controller_sizer.Clear(True)
+
+        self._controller_invert_horizontal = wx.CheckBox(
+            self._controller_page, label="Invert Horizontal Stick"
+        )
+        self._controller_invert_horizontal.SetValue(
+            bool(edit_config.get("controller_invert_horizontal", True))
+        )
+        controller_sizer.Add(
+            self._controller_invert_horizontal, 0, wx.LEFT | wx.RIGHT | wx.TOP, 10
+        )
+
+        self._controller_invert_vertical = wx.CheckBox(
+            self._controller_page, label="Invert Vertical Stick"
+        )
+        self._controller_invert_vertical.SetValue(
+            bool(edit_config.get("controller_invert_vertical", False))
+        )
+        controller_sizer.Add(
+            self._controller_invert_vertical, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 10
+        )
+
+        controller_sizer.Add(
+            wx.StaticLine(self._controller_page),
+            0,
+            wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM,
+            10,
+        )
+
+        self._controller_key_config = KeyConfig(
+            self._controller_page,
+            controller_keybind_id,
+            ControllerKeys,
+            ControllerPresets,
+            controller_user_keybinds,
+            ControllerActionGroups,
+            show_misc=False,
+            show_descriptions=True,
+            require_mouse_action=False,
+        )
+        controller_sizer.Add(self._controller_key_config, 1, wx.EXPAND)
+
+        self._controls_dock.Layout()
+
+    def _on_controls_tab_changed(self, evt: wx.BookCtrlEvent):
+        old_selection = evt.GetOldSelection()
+        if old_selection == 0:
+            self._apply_controls_kind("keyboard")
+        elif old_selection == 1:
+            self._apply_controls_kind("mouse")
+        elif old_selection == 2:
+            self._apply_controls_kind("controller")
+        self._save_controls_dock_settings(tab_index=evt.GetSelection())
+        evt.Skip()
+
+    def _on_controls_sash_changed(self, evt: wx.SplitterEvent):
+        self._save_controls_dock_settings(width=self._current_dock_width())
+        evt.Skip()
+
+    def _show_controls_dock(self, tab_index: int):
+        if self._canvas is None:
+            return
+        if self._controls_dock is None:
+            self._create_controls_dock()
+        if self._controls_dock is None or self._controls_notebook is None:
+            return
+
+        if not self._main_splitter.IsSplit():
+            self._rebuild_controls_tabs()
+            self._show_dock_in_splitter(self._get_controls_dock_settings()["width"])
+
+        self._controls_notebook.SetSelection(tab_index)
+        self._save_controls_dock_settings(
+            visible=True,
+            tab_index=tab_index,
+            width=self._current_dock_width(),
+        )
+        self.Layout()
+
+    def _hide_controls_dock(self, update_config: bool = True):
+        if self._main_splitter is not None and self._controls_dock is not None and self._main_splitter.IsSplit():
+            self._apply_all_controls()
+            width = self._current_dock_width()
+            self._main_splitter.Unsplit(self._controls_dock)
+            if update_config:
+                self._save_controls_dock_settings(visible=False, width=width)
+            self.Layout()
+
+    def _apply_controls_kind(self, kind: str):
+        edit_config = config.get(EDIT_CONFIG_ID, {})
+
+        if kind == "keyboard" and self._keyboard_key_config is not None:
+            user_keybinds, keybind_id, _ = self._keyboard_key_config.options
             edit_config["user_keyboard_keybinds"] = user_keybinds
             edit_config["keyboard_keybind_group"] = keybind_id
             config.put(EDIT_CONFIG_ID, edit_config)
-            # Re-register all keybinds (keyboard, mouse, and controller)
+            self._register_all_keybinds()
+        elif kind == "mouse" and self._mouse_key_config is not None:
+            user_keybinds, keybind_id, _ = self._mouse_key_config.options
+            edit_config["user_mouse_keybinds"] = user_keybinds
+            edit_config["mouse_keybind_group"] = keybind_id
+            config.put(EDIT_CONFIG_ID, edit_config)
+            self._register_all_keybinds()
+        elif kind == "controller" and self._controller_key_config is not None:
+            user_keybinds, keybind_id, _ = self._controller_key_config.options
+            edit_config["user_controller_keybinds"] = user_keybinds
+            edit_config["controller_keybind_group"] = keybind_id
+            if self._controller_invert_horizontal is not None:
+                edit_config["controller_invert_horizontal"] = (
+                    self._controller_invert_horizontal.GetValue()
+                )
+            if self._controller_invert_vertical is not None:
+                edit_config["controller_invert_vertical"] = (
+                    self._controller_invert_vertical.GetValue()
+                )
+            config.put(EDIT_CONFIG_ID, edit_config)
             self._register_all_keybinds()
 
+    def _apply_all_controls(self):
+        self._apply_controls_kind("keyboard")
+        self._apply_controls_kind("mouse")
+        self._apply_controls_kind("controller")
+
+    def _edit_controls(self):
+        self._show_controls_dock(0)
+
     def _edit_mouse_control(self):
-        if self._canvas is not None:
-            edit_config = config.get(EDIT_CONFIG_ID, {})
-            keybind_id = edit_config.get(
-                "mouse_keybind_group",
-                edit_config.get("keybind_group", DefaultKeybindGroupId),
-            )
-            user_keybinds = edit_config.get(
-                "user_mouse_keybinds",
-                {
-                    group_id: {
-                        action: key
-                        for action, key in group.items()
-                        if action in MouseKeys
-                    }
-                    for group_id, group in edit_config.get("user_keybinds", {}).items()
-                },
-            )
-            fixed_keybinds = MousePresets
-
-            # Show mouse keybind configuration
-            dialog = wx.Dialog(
-                self,
-                title=lang.get("program_3d_edit.dialog.mouse_mappings_title"),
-                style=wx.CAPTION
-                | wx.CLOSE_BOX
-                | wx.MAXIMIZE_BOX
-                | wx.MINIMIZE_BOX
-                | wx.SYSTEM_MENU
-                | wx.RESIZE_BORDER,
-            )
-            sizer = wx.BoxSizer(wx.VERTICAL)
-            dialog.SetSizer(sizer)
-            dialog_sizer = wx.BoxSizer(wx.VERTICAL)
-            sizer.Add(dialog_sizer, 1, wx.EXPAND)
-
-            key_config = KeyConfig(
-                dialog,
-                keybind_id,
-                MouseKeys,
-                fixed_keybinds,
-                user_keybinds,
-                MouseActionGroups,
-                show_misc=False,
-                show_descriptions=False,
-                require_mouse_action=True,
-            )
-            dialog_sizer.Add(key_config, 1, wx.EXPAND)
-
-            # Add bottom button sizer
-            bottom_sizer = wx.BoxSizer(wx.HORIZONTAL)
-            sizer.Add(bottom_sizer, 0, wx.EXPAND)
-            bottom_sizer.AddStretchSpacer()
-            button_sizer = dialog.CreateButtonSizer(wx.OK | wx.CANCEL)
-            bottom_sizer.Add(button_sizer, flag=wx.ALL, border=5)
-
-            dialog.Fit()
-
-            if dialog.ShowModal() == wx.ID_OK:
-                user_keybinds, keybind_id, mouse_keybinds = key_config.options
-                edit_config["user_mouse_keybinds"] = user_keybinds
-                edit_config["mouse_keybind_group"] = keybind_id
-                config.put(EDIT_CONFIG_ID, edit_config)
-                # Re-register all keybinds (keyboard, mouse, and controller)
-                self._register_all_keybinds()
+        self._show_controls_dock(1)
 
     def _edit_gamepad_control(self):
         """Configure gamepad/controller button mappings."""
-        if self._canvas is not None:
-            edit_config = config.get(EDIT_CONFIG_ID, {})
-            keybind_id = edit_config.get(
-                "controller_keybind_group",
-                "playstation",  # Default to PlayStation layout
-            )
-            user_keybinds = edit_config.get(
-                "user_controller_keybinds",
-                {},
-            )
-            fixed_keybinds = ControllerPresets
-
-            # Show controller keybind configuration
-            dialog = wx.Dialog(
-                self,
-                title=lang.get("program_3d_edit.dialog.gamepad_mappings_title"),
-                style=wx.CAPTION
-                | wx.CLOSE_BOX
-                | wx.MAXIMIZE_BOX
-                | wx.MINIMIZE_BOX
-                | wx.SYSTEM_MENU
-                | wx.RESIZE_BORDER,
-            )
-            sizer = wx.BoxSizer(wx.VERTICAL)
-            dialog.SetSizer(sizer)
-            dialog_sizer = wx.BoxSizer(wx.VERTICAL)
-            sizer.Add(dialog_sizer, 1, wx.EXPAND)
-
-            invert_horizontal = wx.CheckBox(dialog, label="Invert Horizontal Stick")
-            invert_horizontal.SetValue(bool(edit_config.get("controller_invert_horizontal", True)))
-            dialog_sizer.Add(invert_horizontal, 0, wx.LEFT | wx.RIGHT | wx.TOP, 10)
-
-            invert_vertical = wx.CheckBox(dialog, label="Invert Vertical Stick")
-            invert_vertical.SetValue(bool(edit_config.get("controller_invert_vertical", False)))
-            dialog_sizer.Add(invert_vertical, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 10)
-
-            dialog_sizer.Add(wx.StaticLine(dialog), 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 10)
-
-            key_config = KeyConfig(
-                dialog,
-                keybind_id,
-                ControllerKeys,
-                fixed_keybinds,
-                user_keybinds,
-                ControllerActionGroups,
-                show_misc=False,
-                show_descriptions=True,
-                require_mouse_action=False,
-            )
-            dialog_sizer.Add(key_config, 1, wx.EXPAND)
-
-            # Add bottom button sizer
-            bottom_sizer = wx.BoxSizer(wx.HORIZONTAL)
-            sizer.Add(bottom_sizer, 0, wx.EXPAND)
-            bottom_sizer.AddStretchSpacer()
-            button_sizer = dialog.CreateButtonSizer(wx.OK | wx.CANCEL)
-            bottom_sizer.Add(button_sizer, flag=wx.ALL, border=5)
-
-            dialog.Fit()
-
-            if dialog.ShowModal() == wx.ID_OK:
-                user_keybinds, keybind_id, controller_keybinds = key_config.options
-                edit_config["user_controller_keybinds"] = user_keybinds
-                edit_config["controller_keybind_group"] = keybind_id
-                edit_config["controller_invert_horizontal"] = invert_horizontal.GetValue()
-                edit_config["controller_invert_vertical"] = invert_vertical.GetValue()
-                config.put(EDIT_CONFIG_ID, edit_config)
-                # Re-register all keybinds (keyboard, mouse, and controller)
-                self._register_all_keybinds()
+        self._show_controls_dock(2)
 
     def _edit_camera_controls(self):
         if self._canvas is not None:
+            edit_config = config.get(EDIT_CONFIG_ID, {})
             fov = self._canvas.camera.perspective_fov
             render_distance = self._canvas.renderer.render_distance
             dialog = SimpleDialog(self, "Camera Controls")
@@ -811,9 +980,7 @@ class EditExtension(wx.Panel, BaseProgram):
             if response == wx.ID_OK:
                 edit_config.setdefault("options", {})
                 edit_config["options"]["fov"] = fov_ui.GetValue()
-                edit_config["options"][
-                    "render_distance"
-                ] = render_distance_ui.GetValue()
+                edit_config["options"]["render_distance"] = render_distance_ui.GetValue()
                 config.put(EDIT_CONFIG_ID, edit_config)
             elif response == wx.ID_CANCEL:
                 self._canvas.camera.perspective_fov = fov

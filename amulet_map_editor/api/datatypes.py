@@ -11,6 +11,7 @@ MenuData = Dict[
                 Tuple[Callable],
                 Tuple[Callable, str],
                 Tuple[Callable, str, Any],
+                Tuple[Callable, str, Any, Any],
             ],
         ],
     ],

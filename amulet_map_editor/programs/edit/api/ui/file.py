@@ -208,6 +208,16 @@ class FilePanel(EditCanvasContainer):
 
         self._resize()
 
+    def reparent_to_canvas_parent(self) -> None:
+        """Attach floating panels to the canvas parent so they remain clipped to the viewport area."""
+        parent = self.canvas.GetParent()
+        if parent is None:
+            return
+        for panel in (self._toolbar_panel, self._version_panel, self._button_window):
+            if panel.GetParent() is not parent:
+                panel.Reparent(parent)
+        self._resize()
+
     def bind_events(self):
         self.canvas.Bind(EVT_CAMERA_MOVED, self._on_camera_move)
         self.canvas.Bind(EVT_SPEED_CHANGED, self._on_speed_change)

@@ -306,6 +306,7 @@ class AmuletUI(wx.Frame):
                     callback = None
                     menu_item_description = None
                     wx_id = None
+                    menu_item_config = None
                     if callable(menu_item_options):
                         callback = menu_item_options
                     elif isinstance(menu_item_options, tuple):
@@ -315,6 +316,8 @@ class AmuletUI(wx.Frame):
                             menu_item_description = menu_item_options[1]
                         if len(menu_item_options) >= 3:
                             wx_id = menu_item_options[2]
+                        if len(menu_item_options) >= 4:
+                            menu_item_config = menu_item_options[3]
                     else:
                         continue
 
@@ -323,9 +326,15 @@ class AmuletUI(wx.Frame):
                     if not wx_id:
                         wx_id = wx.ID_ANY
 
-                    menu_item: wx.MenuItem = menu.Append(
-                        wx_id, menu_item_name, menu_item_description
-                    )
+                    if isinstance(menu_item_config, dict) and menu_item_config.get("kind") == "check":
+                        menu_item = menu.AppendCheckItem(
+                            wx_id, menu_item_name, menu_item_description
+                        )
+                        menu_item.Check(bool(menu_item_config.get("checked", False)))
+                    else:
+                        menu_item = menu.Append(
+                            wx_id, menu_item_name, menu_item_description
+                        )
                     self.Bind(wx.EVT_MENU, callback, menu_item)
             menu_bar.Append(menu, menu_name)
         self.SetMenuBar(menu_bar)

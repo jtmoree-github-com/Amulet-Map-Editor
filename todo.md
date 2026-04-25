@@ -11,9 +11,11 @@
 
 ## misc
 * can we have a blender 3d keymap preset?
--- not really.   the workflows are too different.
+-- add G hotkey like blender that calls cut and paste
+-- not completely.   the workflows are very different.
 Ctrl+A yes
-Alt+A  maybe...
+Alt+A  no already used...
+shift+d (duplicate) => copy paste operation
 * ctrl+shift+alt+D to toggle dimension?
 * cursor /highlight speed not tied to camera speed.  maybe have a different speed cotnrol
 * can we make the mode controls dockable so that they can open in a different window?
